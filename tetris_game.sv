@@ -153,6 +153,35 @@ module tetris_game(
                     current_rotation <= current_rotation + 1;
             end
 
+            // Hard Drop
+            if (drop) begin
+                // Move down until collision
+                // We can't do a while loop easily in one cycle if we want to check collision function which is combinational but depends on current_y?
+                // Actually, check_collision uses inputs.
+                // We can loop in a blocking way to find the lowest valid Y.
+                int dy;
+                logic hit;
+                hit = 0;
+                for (dy = 1; dy < 25; dy++) begin
+                    if (!hit) begin
+                        if (check_collision(current_x, current_y + dy, current_rotation, current_piece_type)) begin
+                            // Found collision at +dy. Valid pos is +dy-1.
+                            // Update current_y and force lock next cycle?
+                            // Or lock immediately?
+                            // Let's set current_y to bottom and let next cycle lock (or force lock state).
+                            // Simpler: Set current_y to (current_y + dy - 1) and set drop_timer to max to force lock next tick.
+                            current_y <= current_y + dy - 1;
+                            drop_timer <= DROP_SPEED; // Force lock next tick
+                            hit = 1;
+                        end
+                    end
+                end
+                if (!hit) begin 
+                    // Should not happen if floor exists
+                    current_y <= 19; // Fallback
+                end
+            end
+
             // Gravity
             if (drop_timer >= DROP_SPEED || soft_drop) begin
                 drop_timer <= 0;
@@ -169,7 +198,12 @@ module tetris_game(
                         for (c = 0; c < 4; c++) begin
                             if (shape[r*4 + c]) begin
                                 if (current_y + r >= 0 && current_y + r < ROWS && current_x + c >= 0 && current_x + c < COLS)
-                                    grid[current_y + r][current_x + c] <= current_piece_type + 1; // Store type + 1 (0 is empty)
+                                    grid[current_y + r][current_x + c] <= current_piece_type + 1;
+                                
+                                // Game Over Check: If we lock a piece that is partially above the board (row < 0)
+                                if (current_y + r < 0) begin
+                                    game_over <= 1;
+                                end
                             end
                         end
                     end
@@ -188,7 +222,7 @@ module tetris_game(
                     current_x <= 3;
                     current_y <= -2;
                     
-                    // Check Game Over
+                    // Also check if new piece collides immediately (Stack full)
                     if (check_collision(3, -2, 0, lfsr[2:0] % 7)) game_over <= 1;
                 end
             end else begin
