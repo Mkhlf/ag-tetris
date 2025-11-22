@@ -13,6 +13,7 @@ module tb_tetris_game_advanced;
     logic [1:0] current_rotation;
     logic signed [4:0] current_x;
     logic signed [5:0] current_y;
+    logic [31:0] score;
     logic game_over;
 
     // Instantiate UUT
@@ -30,7 +31,8 @@ module tb_tetris_game_advanced;
         .current_rotation(current_rotation),
         .current_x(current_x),
         .current_y(current_y),
-        .game_over(game_over)
+        .game_over(game_over),
+        .score(score)
     );
 
     // Clock Generation (100MHz)
@@ -128,17 +130,22 @@ module tb_tetris_game_advanced;
         $display("Test 5: Rotation");
         // Current piece is random (LFSR). Let's see if rotation changes state.
         // We can't predict exact shape easily without forcing seed, but we can check rotation index.
-        logic [1:0] initial_rot;
-        initial_rot = current_rotation;
-        press_key("ROTATE");
-        if (current_rotation !== (initial_rot + 1) % 4) 
-            $error("FAIL: Rotation. Expected %0d, Got %0d", (initial_rot + 1) % 4, current_rotation);
-        else
-            $display("PASS: Rotation successful");
+        begin
+            logic [1:0] initial_rot;
+            initial_rot = current_rotation;
+            press_key("ROTATE");
+            if (current_rotation !== (initial_rot + 1) % 4) 
+                $error("FAIL: Rotation. Expected %0d, Got %0d", (initial_rot + 1) % 4, current_rotation);
+            else
+                $display("PASS: Rotation successful");
+        end
 
         $display("Test 6: Hard Drop and Lock");
         // Drop to bottom
         press_key("DROP");
+        
+        // Wait for hard drop to complete (it takes 1 cycle per row)
+        repeat(25) @(posedge clk);
         
         // Should be at bottom now.
         // Wait one tick for lock logic to process (since we set drop_timer to max, next tick locks)
@@ -150,7 +157,8 @@ module tb_tetris_game_advanced;
         
         // Skip soft drop test since we did hard drop
         /*
-        $display("WARNING: Hard Drop logic might be missing in RTL. Testing Soft Drop (Down key) instead.");
+        $display("Testing Soft Drop (Down key) skipped as Hard Drop is verified.");
+        */
         
         // Let's use Soft Drop to speed it up
         // We need to hold DOWN.
@@ -165,28 +173,58 @@ module tb_tetris_game_advanced;
         // Continue until lock
         // Bottom is row 19.
         // We need to reach collision.
-        while (current_y < 22) begin // 22 is arbitrary large number, should reset to -2 on spawn
-             key_down = 1;
-             trigger_tick;
-             if (current_y == -2) break; // Respawned
-        end
-        key_down = 0;
-        */
+        // Wait for lock and potential line clear (max 20 cycles for clear)
+        repeat(30) @(posedge clk);
         
-        $display("Test 7: Piece Locked");
-        // Previous piece should have locked at bottom.
-        // Check bottom row (19) for some blocks.
-        // Since we don't know exact x/shape, check range 0-9.
-        int c;
-        int found;
-        found = 0;
-        for (c=0; c<10; c++) begin
-            if (grid[19][c] != 0) found++;
+        // Check if piece is locked
+        // We can check grid content
+        // Piece was T (type 5), rotation 0.
+        // Center was (3, 18) before lock? No, we dropped to bottom.
+        // Bottom is row 19.
+        // T shape at rot 0:
+        // . X . .
+        // X X X .
+        // . . . .
+        // . . . .
+        // If (x,y) is top-left of 4x4 box.
+        // We need to find where it landed.
+        
+        // Just check that row 19 is not empty
+        begin
+            int c;
+            int found;
+            found = 0;
+            for (c = 0; c < 10; c++) begin
+                if (grid[19][c] != 0) found = 1;
+            end
+            
+            if (found) $display("PASS: Found blocks in row 19");
+            else $error("FAIL: No blocks found in row 19 after lock");
         end
         
-        if (found > 0) $display("PASS: Found %0d blocks in row 19", found);
-        else $error("FAIL: No blocks found in row 19 after lock");
-
+        $display("Test 8: Line Clear");
+        begin
+            int c;
+            // Manually fill row 19 completely to test clearing
+            // We need to wait for spawn first
+            repeat(5) trigger_tick;
+            
+            // Force grid state: Fill row 19
+            for (c=0; c<10; c++) uut.grid[19][c] = 1;
+            
+            // Drop a piece to trigger lock and subsequent clear check
+            press_key("DROP");
+            repeat(25) @(posedge clk); // Wait for drop
+            trigger_tick; // Lock
+            
+            // Wait for clear (30 cycles)
+            repeat(30) @(posedge clk);
+            
+            // Check Score (Should be at least 1 if line cleared)
+            if (score > 0) $display("PASS: Score updated to %0d", score);
+            else $error("FAIL: Score not updated");
+        end
+        
         $display("=== Tests Completed ===");
         $finish;
     end

@@ -84,7 +84,8 @@ module game_top(
     logic signed [4:0] current_x;
     logic signed [5:0] current_y;
     logic game_over;
-
+    logic [31:0] score; // Score signal
+    
     tetris_game game_inst (
         .clk(pix_clk),
         .rst(rst),
@@ -99,7 +100,8 @@ module game_top(
         .current_rotation(current_rotation),
         .current_x(current_x),
         .current_y(current_y),
-        .game_over(game_over)
+        .game_over(game_over),
+        .score(score)
     );
 
     // VGA Output (Raw)
@@ -149,7 +151,8 @@ module game_top(
         .sprite_pixel(sprite_pixel),
         .vga_r(vga_r_raw),
         .vga_g(vga_g_raw),
-        .vga_b(vga_b_raw)
+        .vga_b(vga_b_raw),
+        .score(score)
     );
 
     // Output Pipeline (Fix Ghosting)
