@@ -1,16 +1,15 @@
-`timescale 1ns / 1ps
+`include "../GLOBAL.sv"
 
 module draw_tetris(
     input  wire logic clk,
     input  wire logic [10:0] curr_x,
     input  wire logic [9:0]  curr_y,
     input  wire logic active_area,
-    input  wire logic [3:0] grid [0:19][0:9],
-    input  wire logic [3:0] current_piece_type,
-    input  wire logic [1:0] current_rotation,
-    input  wire logic signed [4:0] current_x,
-    input  wire logic signed [5:0] current_y,
-    input  wire logic game_over,
+    
+    // New Interface: Just the display field
+    input   field_t     display,
+    input   wire logic [31:0] score,
+    input   wire logic game_over,
     
     // Sprite Interface
     output logic [3:0] sprite_addr_x,
@@ -19,8 +18,7 @@ module draw_tetris(
     
     output logic [3:0] vga_r,
     output logic [3:0] vga_g,
-    output logic [3:0] vga_b,
-    input  wire logic [31:0] score
+    output logic [3:0] vga_b
     );
 
     // Screen Layout
@@ -49,32 +47,6 @@ module draw_tetris(
         color_map[7] = 12'hFA0; // Z - Orange
     end
 
-    // Shape definitions
-    logic [15:0] shapes [0:6][0:3];
-    initial begin
-        // I
-        shapes[0][0] = 16'b0000_1111_0000_0000; shapes[0][1] = 16'b0010_0010_0010_0010;
-        shapes[0][2] = 16'b0000_1111_0000_0000; shapes[0][3] = 16'b0010_0010_0010_0010;
-        // J
-        shapes[1][0] = 16'b1000_1110_0000_0000; shapes[1][1] = 16'b0110_0100_0100_0000;
-        shapes[1][2] = 16'b0000_1110_0010_0000; shapes[1][3] = 16'b0010_0010_0110_0000;
-        // L
-        shapes[2][0] = 16'b0010_1110_0000_0000; shapes[2][1] = 16'b0100_0100_0110_0000;
-        shapes[2][2] = 16'b0000_1110_1000_0000; shapes[2][3] = 16'b1100_0100_0100_0000;
-        // O
-        shapes[3][0] = 16'b0110_0110_0000_0000; shapes[3][1] = 16'b0110_0110_0000_0000;
-        shapes[3][2] = 16'b0110_0110_0000_0000; shapes[3][3] = 16'b0110_0110_0000_0000;
-        // S
-        shapes[4][0] = 16'b0110_1100_0000_0000; shapes[4][1] = 16'b0100_0110_0010_0000;
-        shapes[4][2] = 16'b0000_0110_1100_0000; shapes[4][3] = 16'b1000_1100_0100_0000;
-        // T
-        shapes[5][0] = 16'b0100_1110_0000_0000; shapes[5][1] = 16'b0100_0110_0100_0000;
-        shapes[5][2] = 16'b0000_1110_0100_0000; shapes[5][3] = 16'b0100_1100_0100_0000;
-        // Z
-        shapes[6][0] = 16'b1100_0110_0000_0000; shapes[6][1] = 16'b0010_0110_0100_0000;
-        shapes[6][2] = 16'b0000_1100_0110_0000; shapes[6][3] = 16'b0100_1100_1000_0000;
-    end
-
     // Coordinate Transformation
     logic signed [11:0] rel_x, rel_y;
     assign rel_x = curr_x - GRID_X_START;
@@ -90,10 +62,16 @@ module draw_tetris(
     assign block_pixel_x = rel_x % BLOCK_SIZE;
     assign block_pixel_y = rel_y % BLOCK_SIZE;
 
+    // Internal variables for drawing
+    logic signed [31:0] r, c;
+    logic [3:0] cell_color_idx;
+    logic [3:0] intensity;
+
     // Output Logic
     always_comb begin
         vga_r = 0; vga_g = 0; vga_b = 0;
         sprite_addr_x = 0; sprite_addr_y = 0;
+        cell_color_idx = 0;
         
         if (active_area) begin
             // 1. Draw Grid Border
@@ -106,30 +84,14 @@ module draw_tetris(
                     vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'hF;
                 end else begin
                     // Inside Grid
-                    logic [3:0] cell_color_idx;
                     cell_color_idx = 0;
                     
-                    // Check Grid
-                    // Strict bounds check to prevent negative rel_x / BLOCK_SIZE = 0 artifact
-                    if (curr_x >= GRID_X_START && curr_x < GRID_X_START + GRID_W &&
-                        curr_y >= GRID_Y_START && curr_y < GRID_Y_START + GRID_H) begin
+                    // Check Grid Bounds
+                    if (grid_col >= 0 && grid_col < `FIELD_HORIZONTAL &&
+                        grid_row >= 0 && grid_row < `FIELD_VERTICAL_DISPLAY) begin
                         
-                        if (grid[grid_row][grid_col] != 0) begin
-                            cell_color_idx = grid[grid_row][grid_col];
-                        end
-                        
-                        // Check Current Piece
-                        // Use signed comparison for X to handle pieces at left edge (where current_x < 0)
-                        if ($signed({1'b0, grid_col}) >= current_x && $signed({1'b0, grid_col}) < current_x + 4 &&
-                            $signed({1'b0, grid_row}) >= current_y && $signed({1'b0, grid_row}) < current_y + 4) begin
-                            
-                            int r, c;
-                            r = grid_row - current_y;
-                            c = grid_col - current_x;
-                            
-                            if (shapes[current_piece_type][current_rotation][r*4 + c]) begin
-                                cell_color_idx = current_piece_type + 1;
-                            end
+                        if (display.data[grid_row][grid_col].data != `TETROMINO_EMPTY) begin
+                            cell_color_idx = display.data[grid_row][grid_col].data + 1;
                         end
                     end
                     
@@ -140,7 +102,6 @@ module draw_tetris(
                         sprite_addr_y = block_pixel_y[4:1];
                         
                         // Apply texture
-                        logic [3:0] intensity;
                         intensity = sprite_pixel[7:4];
                         
                         vga_r = color_map[cell_color_idx][11:8];

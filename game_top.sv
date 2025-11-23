@@ -1,4 +1,4 @@
-`timescale 1ns / 1ps
+`include "src/GLOBAL.sv"
 
 module game_top(
     input  wire logic CLK100MHZ,
@@ -63,70 +63,58 @@ module game_top(
         end
     end
 
-    // Keyboard & Buttons
-    logic key_left_ps2, key_right_ps2, key_down_ps2, key_rotate_ps2, key_drop_ps2;
+    // Keyboard Input
+    logic [7:0] scan_code;
+    logic make_break;
     
-    // Run PS2 on game_clk for synchronization
     ps2_keyboard kb_inst (
         .clk(game_clk),
         .rst(rst),
         .ps2_clk(PS2_CLK),
         .ps2_data(PS2_DATA),
-        .key_left(key_left_ps2),
-        .key_right(key_right_ps2),
-        .key_down(key_down_ps2),
-        .key_rotate(key_rotate_ps2),
-        .key_drop(key_drop_ps2)
+        .current_scan_code(scan_code),
+        .current_make_break(make_break)
     );
-
-    // Combine Inputs
+    
+    // Input Synchronizers (Robust State Machines)
+    logic key_left_ps2, key_right_ps2, key_down_ps2, key_rotate_ps2, key_drop_ps2;
+    
+    keyboard_to_1_clock #(.SCAN_CODE(`LEFT_ARROW_C))  k_left  (.clk(game_clk), .scanCode(scan_code), .makeBreak(make_break), .signal(key_left_ps2));
+    keyboard_to_1_clock #(.SCAN_CODE(`RIGHT_ARROW_C)) k_right (.clk(game_clk), .scanCode(scan_code), .makeBreak(make_break), .signal(key_right_ps2));
+    keyboard_to_1_clock #(.SCAN_CODE(`DOWN_ARROW_C))  k_down  (.clk(game_clk), .scanCode(scan_code), .makeBreak(make_break), .signal(key_down_ps2));
+    keyboard_to_1_clock #(.SCAN_CODE(`UP_ARROW_C))    k_up    (.clk(game_clk), .scanCode(scan_code), .makeBreak(make_break), .signal(key_rotate_ps2));
+    keyboard_to_1_clock #(.SCAN_CODE(`SPACE_C))       k_space (.clk(game_clk), .scanCode(scan_code), .makeBreak(make_break), .signal(key_drop_ps2));
+    
+    // Combine Inputs (Buttons + Keyboard)
     logic key_left, key_right, key_down, key_rotate, key_drop;
+    
+    // Note: Buttons are active high. We might want to debounce them too, 
+    // but for now direct ORing is fine if buttons are clean enough.
+    // Ideally we'd run buttons through a synchronizer too.
+    
     assign key_left   = key_left_ps2   | btn_l;
     assign key_right  = key_right_ps2  | btn_r;
     assign key_down   = key_down_ps2   | btn_d;
-    assign key_rotate = key_rotate_ps2 | btn_u; // Up for Rotate
-    assign key_drop   = key_drop_ps2   | btn_c; // Center for Drop (or Space)
+    assign key_rotate = key_rotate_ps2 | btn_u;
+    assign key_drop   = key_drop_ps2   | btn_c;
 
     // Game Logic
-    logic [3:0] grid [0:19][0:9];
-    logic [3:0] current_piece_type;
-    logic [1:0] current_rotation;
-    logic signed [4:0] current_x;
-    logic signed [5:0] current_y;
+    field_t display_field;
+    logic [31:0] score;
     logic game_over;
-    logic [31:0] score; // Score signal
     
-    // Input Synchronization (Debouncing / One-Shot)
-    logic key_drop_pulse, key_rotate_pulse;
-    
-    input_synchronizer sync_drop (
-        .clk(game_clk),
-        .in_signal(key_drop),
-        .out_pulse(key_drop_pulse)
-    );
-    
-    input_synchronizer sync_rotate (
-        .clk(game_clk),
-        .in_signal(key_rotate),
-        .out_pulse(key_rotate_pulse)
-    );
-
-    tetris_game game_inst (
+    game_control game_inst (
         .clk(game_clk),
         .rst(rst),
         .tick_game(tick_game),
         .key_left(key_left),
         .key_right(key_right),
         .key_down(key_down),
-        .key_rotate(key_rotate_pulse), // Use synchronized pulse
-        .key_drop(key_drop_pulse),     // Use synchronized pulse
-        .grid(grid),
-        .current_piece_type(current_piece_type),
-        .current_rotation(current_rotation),
-        .current_x(current_x),
-        .current_y(current_y),
-        .game_over(game_over),
-        .score(score)
+        .key_rotate(key_rotate),
+        .key_drop(key_drop),
+        .display(display_field),
+        .score(score),
+        .game_over(game_over)
     );
 
     // VGA Output (Raw)
@@ -165,27 +153,18 @@ module game_top(
         .curr_x(curr_x_raw),
         .curr_y(curr_y_raw),
         .active_area(active_area_raw),
-        .grid(grid),
-        .current_piece_type(current_piece_type),
-        .current_rotation(current_rotation),
-        .current_x(current_x),
-        .current_y(current_y),
+        .display(display_field),
+        .score(score),
         .game_over(game_over),
         .sprite_addr_x(sprite_addr_x),
         .sprite_addr_y(sprite_addr_y),
         .sprite_pixel(sprite_pixel),
         .vga_r(vga_r_raw),
         .vga_g(vga_g_raw),
-        .vga_b(vga_b_raw),
-        .score(score)
+        .vga_b(vga_b_raw)
     );
 
     // Output Pipeline (Fix Ghosting)
-    // Register the renderer outputs and coordinates to stabilize per-pixel color
-    // and maintain alignment between position and color
-    // Note: curr_x/y are not outputs of top, but if we needed them we'd register them too.
-    // We definitely need to register HSYNC/VSYNC to match the color delay.
-    
     always_ff @(posedge pix_clk) begin
         VGA_R <= vga_r_raw;
         VGA_G <= vga_g_raw;
