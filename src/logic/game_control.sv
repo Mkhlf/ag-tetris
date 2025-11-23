@@ -205,7 +205,7 @@ module game_control (
   // State Update & Data Path
   always_ff @(posedge clk) begin
     if (rst) begin
-        ps <= GEN;
+        ps <= WARMUP;
         f_curr.data <= '1; // Initialize to all 1s (TETROMINO_EMPTY = 3'b111)
         t_curr.idx.data <= `TETROMINO_EMPTY;
         t_curr.tetromino.data <= '0;

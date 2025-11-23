@@ -222,12 +222,10 @@ module draw_tetris(
                      end
                  end
             end
-            // 6. Debug Heartbeat (Bottom Right of Grid)
-            // Flashes every ~0.5s (assuming 83MHz pix_clk, bit 25 toggles every 0.4s)
-            // We use a local counter for this since we don't have a time signal
+            // 6. Heartbeat (Bottom Right of Grid) to indicate that we can continue the game once its is over 
             if (curr_x >= GRID_X_START + GRID_W - 10 && curr_x < GRID_X_START + GRID_W &&
                 curr_y >= GRID_Y_START + GRID_H - 10 && curr_y < GRID_Y_START + GRID_H) begin
-                 if (heartbeat_cnt[25]) begin
+                 if (heartbeat_cnt[25] && game_over) begin
                      vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'hF;
                  end
             end
