@@ -149,6 +149,7 @@ module game_top(
         .key_down(key_down),
         .key_rotate(key_rotate),
         .key_drop(key_drop),
+        .key_drop_held(raw_drop), // Connect raw state for lockout
         .display(display_field),
         .score(score),
         .game_over(game_over),

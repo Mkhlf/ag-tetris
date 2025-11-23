@@ -13,18 +13,23 @@ module draw_number (
     // Implementing a full font ROM here is complex.
     // Let's use a 4x5 font for digits 0-9.
     
-    logic [19:0] font [0:9];
-    initial begin
-        font[0] = 20'b0110_1001_1001_1001_0110; // 0
-        font[1] = 20'b0010_0110_0010_0010_0111; // 1
-        font[2] = 20'b0110_0001_0010_0100_1111; // 2
-        font[3] = 20'b0110_0001_0010_0001_0110; // 3
-        font[4] = 20'b1001_1001_1111_0001_0001; // 4
-        font[5] = 20'b1111_1000_1110_0001_1110; // 5
-        font[6] = 20'b0110_1000_1110_1001_0110; // 6
-        font[7] = 20'b1111_0001_0010_0100_0100; // 7
-        font[8] = 20'b0110_1001_0110_1001_0110; // 8
-        font[9] = 20'b0110_1001_0111_0001_0110; // 9
+    // Font ROM (Combinational for Synthesis Safety)
+    logic [19:0] current_glyph;
+    
+    always_comb begin
+        case (digit)
+            0: current_glyph = 20'b0110_1001_1001_1001_0110;
+            1: current_glyph = 20'b0010_0010_0010_0010_0010;
+            2: current_glyph = 20'b0110_0001_0010_0100_1111;
+            3: current_glyph = 20'b0110_0001_0010_0001_0110;
+            4: current_glyph = 20'b1001_1001_1111_0001_0001;
+            5: current_glyph = 20'b1111_1000_1110_0001_1110;
+            6: current_glyph = 20'b0110_1000_1110_1001_0110;
+            7: current_glyph = 20'b1111_0001_0010_0100_0100;
+            8: current_glyph = 20'b0110_1001_0110_1001_0110;
+            9: current_glyph = 20'b0110_1001_0111_0001_0110;
+            default: current_glyph = '0;
+        endcase
     end
     
     // We can draw up to 8 digits.
@@ -88,7 +93,7 @@ module draw_number (
                 // Or just show the number of lines cleared?
                 
                 if (digit < 10) begin
-                   if (font[digit][19 - (dy*4 + dx)]) pixel_on = 1;
+                   if (current_glyph[19 - (dy*4 + dx)]) pixel_on = 1;
                 end
             end
         end

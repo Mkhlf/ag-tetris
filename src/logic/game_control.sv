@@ -11,6 +11,7 @@ module game_control (
     input   logic           key_down,   // Soft Drop (Continuous or Pulse?) - usually continuous for soft drop
     input   logic           key_rotate, // Pulse
     input   logic           key_drop,   // Hard Drop Pulse
+    input   logic           key_drop_held, // Raw state for lockout
     
     output  field_t         display,
     output  logic [31:0]    score,
@@ -57,7 +58,9 @@ module game_control (
   
   always_comb begin
       // Level increases every 10 lines (approx 1000 score / 100)
-      current_level = (score / 1000); 
+      // Level increases every 1000 points (10 lines)
+      // Score is BCD. Thousands digit is score[15:12]. Ten-thousands is score[19:16].
+      current_level = score[15:12] + (score[19:16] * 10); 
       if (current_level > 15) current_level = 15;
        // Speed: 40 frames (faster start) -> 5 frames (fast)
        if (current_level * 2 >= 35) drop_speed_frames = 5;
@@ -202,7 +205,7 @@ module game_control (
         end
         
         DROP_LOCKOUT: begin
-            if (!key_drop) ns = GEN;
+            if (!key_drop_held) ns = GEN;
         end
     endcase
   end
@@ -269,7 +272,28 @@ module game_control (
             CLEAN: begin
                 if (clean_done) begin
                     f_curr <= f_cleaned;
-                    score <= score + (lines_cleared * 100); // Simple scoring
+                    f_curr <= f_cleaned;
+                    // BCD Score Update (Add lines_cleared * 100)
+                    // score[11:8] is hundreds digit
+                    // We only add 1, 2, 3, or 4 to hundreds.
+                    if (score[11:8] + lines_cleared > 9) begin
+                        score[11:8] <= score[11:8] + lines_cleared - 10;
+                        // Carry to thousands
+                        if (score[15:12] == 9) begin
+                            score[15:12] <= 0;
+                            // Carry to ten-thousands
+                            if (score[19:16] == 9) begin
+                                score[19:16] <= 0;
+                                score[23:20] <= score[23:20] + 1;
+                            end else begin
+                                score[19:16] <= score[19:16] + 1;
+                            end
+                        end else begin
+                            score[15:12] <= score[15:12] + 1;
+                        end
+                    end else begin
+                        score[11:8] <= score[11:8] + lines_cleared;
+                    end
                 end
             end
             
