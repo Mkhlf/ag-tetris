@@ -66,6 +66,10 @@ module tb_tetris_game_advanced;
                 "ROTATE": key_rotate = 1;
                 "DROP": key_drop = 1;
             endcase
+            
+            // Hold key for multiple cycles to ensure it is captured
+            repeat(10) @(posedge clk);
+            
             trigger_tick; // Input is processed on tick
             @(posedge clk);
             key_left = 0; key_right = 0; key_down = 0; key_rotate = 0; key_drop = 0;

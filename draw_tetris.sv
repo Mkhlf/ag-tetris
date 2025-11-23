@@ -110,20 +110,25 @@ module draw_tetris(
                     cell_color_idx = 0;
                     
                     // Check Grid
-                    if (grid[grid_row][grid_col] != 0) begin
-                        cell_color_idx = grid[grid_row][grid_col];
-                    end
-                    
-                    // Check Current Piece
-                    if (grid_col >= current_x && grid_col < current_x + 4 &&
-                        grid_row >= current_y && grid_row < current_y + 4) begin
+                    // Strict bounds check to prevent negative rel_x / BLOCK_SIZE = 0 artifact
+                    if (curr_x >= GRID_X_START && curr_x < GRID_X_START + GRID_W &&
+                        curr_y >= GRID_Y_START && curr_y < GRID_Y_START + GRID_H) begin
                         
-                        int r, c;
-                        r = grid_row - current_y;
-                        c = grid_col - current_x;
+                        if (grid[grid_row][grid_col] != 0) begin
+                            cell_color_idx = grid[grid_row][grid_col];
+                        end
                         
-                        if (shapes[current_piece_type][current_rotation][r*4 + c]) begin
-                            cell_color_idx = current_piece_type + 1;
+                        // Check Current Piece
+                        if (grid_col >= current_x && grid_col < current_x + 4 &&
+                            grid_row >= current_y && grid_row < current_y + 4) begin
+                            
+                            int r, c;
+                            r = grid_row - current_y;
+                            c = grid_col - current_x;
+                            
+                            if (shapes[current_piece_type][current_rotation][r*4 + c]) begin
+                                cell_color_idx = current_piece_type + 1;
+                            end
                         end
                     end
                     
