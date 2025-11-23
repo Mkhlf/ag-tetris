@@ -21,9 +21,39 @@ module tb_ps2_keyboard;
 
     always #5 clk = ~clk;
 
-    // Simulate PS2Receiver output by directly injecting keycodes
-    // This is a simplified test
-    
+    // Task to send a PS/2 byte (Copied from tb_PS2Receiver with 5us delays)
+    task send_ps2_byte(input [7:0] data);
+        integer i;
+        logic parity;
+        begin
+            parity = ^data; // Odd parity
+            
+            // Start bit
+            ps2_data = 0;
+            #5000 ps2_clk = 0;
+            #5000 ps2_clk = 1;
+            
+            // Data bits
+            for (i = 0; i < 8; i = i + 1) begin
+                ps2_data = data[i];
+                #5000 ps2_clk = 0;
+                #5000 ps2_clk = 1;
+            end
+            
+            // Parity bit
+            ps2_data = parity;
+            #5000 ps2_clk = 0;
+            #5000 ps2_clk = 1;
+            
+            // Stop bit
+            ps2_data = 1;
+            #5000 ps2_clk = 0;
+            #5000 ps2_clk = 1;
+            
+            #20000; // Wait between bytes
+        end
+    endtask
+
     initial begin
         clk = 0;
         rst = 1;
@@ -33,23 +63,36 @@ module tb_ps2_keyboard;
         #20 rst = 0;
         
         $display("=== ps2_keyboard Testbench ===");
-        $display("Note: This is a simplified test.");
-        $display("For full PS2 testing, use tb_PS2Receiver.sv");
-        
-        // The ps2_keyboard module relies on PS2Receiver
-        // A full test would require simulating the entire PS/2 protocol
-        // For now, we verify the module compiles and initializes
         
         #100;
         
-        if (current_scan_code == 0 && current_make_break == 0)
-            $display("PASS: Module initialized correctly");
+        // Test 1: Make Code (Press 'A' - 0x1C)
+        $display("Test 1: Press 'A' (0x1C)");
+        send_ps2_byte(8'h1C);
+        #1000;
+        
+        if (current_scan_code == 8'h1C && current_make_break == 1)
+            $display("PASS: Key Press Detected (Code: %h, State: Make)", current_scan_code);
         else
-            $display("WARNING: Unexpected initial state");
+            $display("FAIL: Expected 0x1C Make, got %h %b", current_scan_code, current_make_break);
+            
+        // Test 2: Break Code (Release 'A' - F0 1C)
+        $display("\nTest 2: Release 'A' (F0 1C)");
+        send_ps2_byte(8'hF0);
+        #1000;
+        // Intermediate state: F0 received, waiting for next byte. 
+        // Logic might hold previous state or clear.
+        // Our logic: if (new_byte == 8'hF0) -> do nothing (wait).
+        
+        send_ps2_byte(8'h1C);
+        #1000;
+        
+        if (current_scan_code == 8'h1C && current_make_break == 0)
+            $display("PASS: Key Release Detected (Code: %h, State: Break)", current_scan_code);
+        else
+            $display("FAIL: Expected 0x1C Break, got %h %b", current_scan_code, current_make_break);
         
         $display("\nSimulation Finished");
-        $display("For comprehensive keyboard testing, use hardware or");
-        $display("implement a full PS/2 protocol simulator");
         $finish;
     end
 

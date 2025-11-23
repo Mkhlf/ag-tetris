@@ -30,7 +30,9 @@ module tb_game_control;
         .key_drop(key_drop),
         .display(display),
         .score(score),
-        .game_over(game_over)
+        .game_over(game_over),
+        .t_next_disp(),      // Unused in TB
+        .current_level_out() // Unused in TB
     );
 
     // Clock Generation

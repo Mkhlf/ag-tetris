@@ -25,27 +25,27 @@ module tb_PS2Receiver;
             
             // Start bit
             kdata = 0;
-            #10 kclk = 0;
-            #10 kclk = 1;
+            #5000 kclk = 0;
+            #5000 kclk = 1;
             
             // Data bits
             for (i = 0; i < 8; i = i + 1) begin
                 kdata = data[i];
-                #10 kclk = 0;
-                #10 kclk = 1;
+                #5000 kclk = 0;
+                #5000 kclk = 1;
             end
             
             // Parity bit
             kdata = parity;
-            #10 kclk = 0;
-            #10 kclk = 1;
+            #5000 kclk = 0;
+            #5000 kclk = 1;
             
             // Stop bit
             kdata = 1;
-            #10 kclk = 0;
-            #10 kclk = 1;
+            #5000 kclk = 0;
+            #5000 kclk = 1;
             
-            #100; // Wait between bytes
+            #20000; // Wait between bytes
         end
     endtask
 
@@ -58,7 +58,7 @@ module tb_PS2Receiver;
         
         $display("=== Test 1: Single Scancode ===");
         send_ps2_byte(8'h1C); // 'A' key
-        #50;
+        #1000;
         if (keycodeout[7:0] == 8'h1C)
             $display("PASS: Received scancode 0x1C");
         else
@@ -66,14 +66,14 @@ module tb_PS2Receiver;
         
         $display("\n=== Test 2: Multiple Scancodes ===");
         send_ps2_byte(8'h23); // 'D' key
-        #50;
+        #1000;
         if (keycodeout[7:0] == 8'h23)
             $display("PASS: Received scancode 0x23");
         else
             $display("FAIL: Expected 0x23, got 0x%h", keycodeout[7:0]);
             
         send_ps2_byte(8'h2B); // 'F' key
-        #50;
+        #1000;
         if (keycodeout[7:0] == 8'h2B)
             $display("PASS: Received scancode 0x2B");
         else
@@ -81,9 +81,9 @@ module tb_PS2Receiver;
         
         $display("\n=== Test 3: Break Code (F0) ===");
         send_ps2_byte(8'hF0);
-        #50;
+        #1000;
         send_ps2_byte(8'h1C);
-        #50;
+        #1000;
         if (keycodeout[15:8] == 8'hF0 && keycodeout[7:0] == 8'h1C)
             $display("PASS: Break code received correctly");
         else

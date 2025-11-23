@@ -7,7 +7,21 @@ module tb_input_manager;
     logic raw_left, raw_right, raw_down, raw_rotate, raw_drop;
     logic cmd_left, cmd_right, cmd_down, cmd_rotate, cmd_drop;
 
-    input_manager uut (.*);
+    input_manager uut (
+        .clk(clk),
+        .rst(rst),
+        .tick_game(tick_game),
+        .raw_left(raw_left),
+        .raw_right(raw_right),
+        .raw_down(raw_down),
+        .raw_rotate(raw_rotate),
+        .raw_drop(raw_drop),
+        .cmd_left(cmd_left),
+        .cmd_right(cmd_right),
+        .cmd_down(cmd_down),
+        .cmd_rotate(cmd_rotate),
+        .cmd_drop(cmd_drop)
+    );
 
     always #5 clk = ~clk; // 100MHz
 

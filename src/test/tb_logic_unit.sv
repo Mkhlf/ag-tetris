@@ -56,9 +56,10 @@ module tb_logic_unit;
         clean_enable = 0;
         
         // Initialize Fields
-        f_check.data = '{default: '{default: `TETROMINO_EMPTY}};
-        f_base.data = '{default: '{default: `TETROMINO_EMPTY}};
-        f_dirty.data = '{default: '{default: `TETROMINO_EMPTY}};
+        // Initialize Fields
+        f_check.data = '1;
+        f_base.data = '1;
+        f_dirty.data = '1;
         
         #20 rst = 0;
         
@@ -112,7 +113,7 @@ module tb_logic_unit;
         t_create = t_check;
         t_create.coordinate.x = 0;
         t_create.coordinate.y = 0;
-        f_base.data = '{default: '{default: `TETROMINO_EMPTY}};
+        f_base.data = '1;
         
         #1;
         // Expect T-shape at top-left

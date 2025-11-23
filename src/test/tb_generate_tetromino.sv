@@ -8,15 +8,13 @@ module tb_generate_tetromino;
     logic enable;
     tetromino_ctrl t_curr_out;
     tetromino_ctrl t_next_out;
-    logic done;
 
     generate_tetromino uut (
         .clk(clk),
         .rst(rst),
         .enable(enable),
-        .t_curr(t_curr_out),
-        .t_next(t_next_out),
-        .done(done)
+        .t_out(t_curr_out),
+        .t_next_out(t_next_out)
     );
 
     always #5 clk = ~clk;
@@ -31,7 +29,7 @@ module tb_generate_tetromino;
         $display("=== Test 1: Initial Generation ===");
         enable = 1;
         @(posedge clk);
-        wait(done);
+        repeat(2) @(posedge clk); // Generation takes 1 cycle
         @(posedge clk);
         
         if (t_curr_out.idx.data >= `TETROMINO_I_IDX && t_curr_out.idx.data <= `TETROMINO_Z_IDX)
@@ -55,7 +53,7 @@ module tb_generate_tetromino;
         for (int i = 0; i < 10; i++) begin
             enable = 1;
             @(posedge clk);
-            wait(done);
+            repeat(2) @(posedge clk);
             @(posedge clk);
             enable = 0;
             @(posedge clk);
