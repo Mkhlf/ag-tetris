@@ -35,7 +35,8 @@ module game_control (
   state_t ps, ns;
   
   // Internal Signals
-  tetromino_ctrl t_curr, t_curr_cand, t_gen_curr, t_gen_next;
+  tetromino_ctrl t_curr, t_curr_cand, t_gen, t_gen_next;
+  tetromino_ctrl t_check; // Candidate for validation
   
   field_t f_curr, f_disp, f_cleaned;
   
@@ -44,9 +45,27 @@ module game_control (
   logic clean_done;
   logic [2:0] lines_cleared;
   
+  // Level & Speed Logic
+  logic [3:0] current_level;
+  logic [31:0] drop_speed_frames;
+  
+  always_comb begin
+      // Level increases every 10 lines (approx 1000 score / 100)
+      // Or just use score / 1000? The user code had score / 10 which is very fast leveling.
+      // Let's stick to the previous logic: score / 10 (assuming score is lines * 10? No, lines * 100).
+      // So score / 1000 = 1 level per 10 lines.
+      current_level = (score / 1000); 
+      if (current_level > 15) current_level = 15;
+      
+      // Speed: 60 frames (slow) -> 5 frames (fast)
+      // 60 - (level * 3)
+      if (current_level * 3 >= 55) drop_speed_frames = 5;
+      else drop_speed_frames = 60 - (current_level * 3);
+  end
+  
   // Timers
   integer drop_timer;
-  localparam DROP_SPEED = 30; // Frames per drop
+  // localparam DROP_SPEED removed in favor of dynamic speed
   
   // Submodules
   
@@ -166,7 +185,7 @@ module game_control (
   always_ff @(posedge clk) begin
     if (rst) begin
         ps <= GEN;
-        f_curr.data <= '{default: '{default: `TETROMINO_EMPTY}}; // Initialize empty
+        f_curr.data <= '1; // Initialize to all 1s (TETROMINO_EMPTY = 3'b111)
         score <= 0;
         game_over <= 0;
         drop_timer <= 0;
