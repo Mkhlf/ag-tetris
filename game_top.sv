@@ -21,7 +21,11 @@ module game_top(
     logic rst;
     assign rst = ~CPU_RESETN;
     
-    // Debug LEDs
+    // Debug LEDs - PS/2 Hardware Signals
+    // NOTE: PS/2 uses pull-ups, so lines are HIGH when idle/disconnected
+    // With keyboard active (typing), you'll see flickering/blinking
+    // LED[0] = PS2_CLK (will flicker when keyboard sends data)
+    // LED[1] = PS2_DATA (will change based on transmitted bits)
     assign LED[0] = PS2_CLK;
     assign LED[1] = PS2_DATA;
 
@@ -110,7 +114,8 @@ module game_top(
     // Input Manager (DAS & One-Shot)
     logic key_left, key_right, key_down, key_rotate, key_drop;
     
-    input_manager input_mgr (
+    input_manager input_mgr (    // With keyboard active (typing), you'll see flickering/blinking
+
         .clk(game_clk),
         .rst(rst),
         .tick_game(tick_game),
@@ -131,6 +136,7 @@ module game_top(
     logic [31:0] score;
     logic game_over;
     tetromino_ctrl t_next; // Next piece signal
+    logic [3:0] current_level;
     
     game_control game_inst (
         .clk(game_clk),
@@ -144,7 +150,8 @@ module game_top(
         .display(display_field),
         .score(score),
         .game_over(game_over),
-        .t_next_disp(t_next)
+        .t_next_disp(t_next),
+        .current_level_out(current_level)
     );
 
     // VGA Output (Raw)
@@ -187,6 +194,7 @@ module game_top(
         .score(score),
         .game_over(game_over),
         .t_next(t_next),
+        .current_level(current_level),
         .sprite_addr_x(sprite_addr_x),
         .sprite_addr_y(sprite_addr_y),
         .sprite_pixel(sprite_pixel),

@@ -15,7 +15,8 @@ module game_control (
     output  field_t         display,
     output  logic [31:0]    score,
     output  logic           game_over,
-    output  tetromino_ctrl  t_next_disp
+    output  tetromino_ctrl  t_next_disp,
+    output  logic [3:0]     current_level_out
   );
 
   // States
@@ -34,8 +35,7 @@ module game_control (
   state_t ps, ns;
   
   // Internal Signals
-  tetromino_ctrl t_curr, t_next, t_gen, t_gen_next;
-  tetromino_ctrl t_check; // Candidate for validation
+  tetromino_ctrl t_curr, t_curr_cand, t_gen_curr, t_gen_next;
   
   field_t f_curr, f_disp, f_cleaned;
   
@@ -96,6 +96,7 @@ module game_control (
   
   assign display = f_disp;
   assign t_next_disp = t_gen_next;
+  assign current_level_out = current_level;
   
   // Candidate Logic for Validation
   always_comb begin
@@ -128,8 +129,8 @@ module game_control (
             else if (key_left) ns = MOVE_LEFT;
             else if (key_right) ns = MOVE_RIGHT;
             // Fix: key_down is already a pulse from input_manager, don't AND with tick_game again
-            // because they might be 1 cycle apart.
-            else if (drop_timer >= DROP_SPEED || key_down) ns = DOWN;
+            // Dynamic speed based on level
+            else if (drop_timer >= drop_speed_frames || key_down) ns = DOWN;
         end
         
         MOVE_LEFT: ns = IDLE;
