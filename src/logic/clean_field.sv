@@ -57,8 +57,12 @@ module clean_field (
 
             SHIFT: begin
                 // Shift everything down into 'row'
-                for (k = row; k > 0; k--) begin
-                    f_temp.data[k] <= f_temp.data[k-1];
+                // Fix: Use fixed loop bounds for synthesis
+                // Iterate through all rows, but only shift if we are at or above the cleared row
+                for (k = `FIELD_VERTICAL - 1; k > 0; k--) begin
+                    if (k <= row) begin
+                        f_temp.data[k] <= f_temp.data[k-1];
+                    end
                 end
                 // Clear top row
                 for (col = 0; col < `FIELD_HORIZONTAL; col++) begin

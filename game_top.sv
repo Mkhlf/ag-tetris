@@ -76,27 +76,50 @@ module game_top(
         .current_make_break(make_break)
     );
     
-    // Input Synchronizers (Robust State Machines)
-    logic key_left_ps2, key_right_ps2, key_down_ps2, key_rotate_ps2, key_drop_ps2;
+    // Decode Raw Levels (Held State)
+    // We latch the state based on the last event for that key.
+    logic raw_left_kb, raw_right_kb, raw_down_kb, raw_rotate_kb, raw_drop_kb;
     
-    keyboard_to_1_clock #(.SCAN_CODE(`LEFT_ARROW_C))  k_left  (.clk(game_clk), .scanCode(scan_code), .makeBreak(make_break), .signal(key_left_ps2));
-    keyboard_to_1_clock #(.SCAN_CODE(`RIGHT_ARROW_C)) k_right (.clk(game_clk), .scanCode(scan_code), .makeBreak(make_break), .signal(key_right_ps2));
-    keyboard_to_1_clock #(.SCAN_CODE(`DOWN_ARROW_C))  k_down  (.clk(game_clk), .scanCode(scan_code), .makeBreak(make_break), .signal(key_down_ps2));
-    keyboard_to_1_clock #(.SCAN_CODE(`UP_ARROW_C))    k_up    (.clk(game_clk), .scanCode(scan_code), .makeBreak(make_break), .signal(key_rotate_ps2));
-    keyboard_to_1_clock #(.SCAN_CODE(`SPACE_C))       k_space (.clk(game_clk), .scanCode(scan_code), .makeBreak(make_break), .signal(key_drop_ps2));
-    
-    // Combine Inputs (Buttons + Keyboard)
+    always_ff @(posedge game_clk) begin
+        if (rst) begin
+            raw_left_kb <= 0; raw_right_kb <= 0; raw_down_kb <= 0;
+            raw_rotate_kb <= 0; raw_drop_kb <= 0;
+        end else begin
+            // Update state based on scan code event
+            if (scan_code == `LEFT_ARROW_C)  raw_left_kb   <= make_break;
+            if (scan_code == `RIGHT_ARROW_C) raw_right_kb  <= make_break;
+            if (scan_code == `DOWN_ARROW_C)  raw_down_kb   <= make_break;
+            if (scan_code == `UP_ARROW_C)    raw_rotate_kb <= make_break;
+            if (scan_code == `SPACE_C)       raw_drop_kb   <= make_break;
+        end
+    end
+
+    // Combine with Buttons (Active High)
+    logic raw_left, raw_right, raw_down, raw_rotate, raw_drop;
+    assign raw_left   = raw_left_kb   | btn_l;
+    assign raw_right  = raw_right_kb  | btn_r;
+    assign raw_down   = raw_down_kb   | btn_d;
+    assign raw_rotate = raw_rotate_kb | btn_u;
+    assign raw_drop   = raw_drop_kb   | btn_c;
+
+    // Input Manager (DAS & One-Shot)
     logic key_left, key_right, key_down, key_rotate, key_drop;
     
-    // Note: Buttons are active high. We might want to debounce them too, 
-    // but for now direct ORing is fine if buttons are clean enough.
-    // Ideally we'd run buttons through a synchronizer too.
-    
-    assign key_left   = key_left_ps2   | btn_l;
-    assign key_right  = key_right_ps2  | btn_r;
-    assign key_down   = key_down_ps2   | btn_d;
-    assign key_rotate = key_rotate_ps2 | btn_u;
-    assign key_drop   = key_drop_ps2   | btn_c;
+    input_manager input_mgr (
+        .clk(game_clk),
+        .rst(rst),
+        .tick_game(tick_game),
+        .raw_left(raw_left),
+        .raw_right(raw_right),
+        .raw_down(raw_down),
+        .raw_rotate(raw_rotate),
+        .raw_drop(raw_drop),
+        .cmd_left(key_left),
+        .cmd_right(key_right),
+        .cmd_down(key_down),
+        .cmd_rotate(key_rotate),
+        .cmd_drop(key_drop)
+    );
 
     // Game Logic
     field_t display_field;
