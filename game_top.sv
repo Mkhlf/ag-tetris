@@ -14,11 +14,16 @@ module game_top(
     output logic [3:0] VGA_G,
     output logic [3:0] VGA_B,
     output logic VGA_HS,
-    output logic VGA_VS
+    output logic VGA_VS,
+    output logic [1:0] LED // Debug LEDs
     );
 
     logic rst;
     assign rst = ~CPU_RESETN;
+    
+    // Debug LEDs
+    assign LED[0] = PS2_CLK;
+    assign LED[1] = PS2_DATA;
 
     // Clock Generation
     logic pix_clk; // 83.46 MHz (approx)
@@ -125,6 +130,7 @@ module game_top(
     field_t display_field;
     logic [31:0] score;
     logic game_over;
+    tetromino_ctrl t_next; // Next piece signal
     
     game_control game_inst (
         .clk(game_clk),
@@ -137,7 +143,8 @@ module game_top(
         .key_drop(key_drop),
         .display(display_field),
         .score(score),
-        .game_over(game_over)
+        .game_over(game_over),
+        .t_next_disp(t_next)
     );
 
     // VGA Output (Raw)
@@ -179,6 +186,7 @@ module game_top(
         .display(display_field),
         .score(score),
         .game_over(game_over),
+        .t_next(t_next),
         .sprite_addr_x(sprite_addr_x),
         .sprite_addr_y(sprite_addr_y),
         .sprite_pixel(sprite_pixel),
