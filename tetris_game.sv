@@ -15,6 +15,7 @@ module tetris_game(
     output logic [1:0] current_rotation,
     output logic signed [4:0] current_x,
     output logic signed [5:0] current_y,
+    output logic game_over,
     output logic [31:0] score
     );
 
@@ -80,6 +81,7 @@ module tetris_game(
 
     // Input Handling
     logic prev_left, prev_right, prev_rotate, prev_drop, prev_down;
+    logic pending_left, pending_right, pending_rotate, pending_drop;
     
     // Randomness
     logic [15:0] lfsr;
@@ -127,14 +129,18 @@ module tetris_game(
             score <= 0;
             lc_start <= 0;
             prev_left <= 0; prev_right <= 0; prev_rotate <= 0; prev_drop <= 0; prev_down <= 0;
+            pending_left <= 0; pending_right <= 0; pending_rotate <= 0; pending_drop <= 0;
         end else begin
-            // Input Edge Detection
+            // Input Edge Detection & Latching
             logic move_left, move_right, rotate, drop, soft_drop;
-            move_left = key_left && !prev_left;
-            move_right = key_right && !prev_right;
-            rotate = key_rotate && !prev_rotate;
-            drop = key_drop && !prev_drop;
-            soft_drop = key_down;
+            
+            // Detect edges
+            if (key_left && !prev_left) pending_left <= 1;
+            if (key_right && !prev_right) pending_right <= 1;
+            if (key_rotate && !prev_rotate) pending_rotate <= 1;
+            if (key_drop && !prev_drop) pending_drop <= 1;
+            
+            soft_drop = key_down; // Continuous
             
             prev_left <= key_left;
             prev_right <= key_right;
@@ -153,6 +159,9 @@ module tetris_game(
                     current_y <= -2;
                     drop_timer <= 0;
                     
+                    // Clear pending inputs on spawn to prevent accidental moves
+                    pending_left <= 0; pending_right <= 0; pending_rotate <= 0; pending_drop <= 0;
+                    
                     // Check immediate collision (Stack Full)
                     if (check_collision(3, -2, 0, lfsr[2:0] % 7)) begin
                         state <= GAME_OVER_STATE;
@@ -163,27 +172,41 @@ module tetris_game(
                 end
 
                 PLAY: begin
-                    if (tick_game) begin
-                        // Hard Drop Trigger
-                        if (drop) begin
-                            state <= HARD_DROP;
-                        end else begin
-                            // Movement
-                            if (move_left) begin
-                                if (!check_collision(current_x - 1, current_y, current_rotation, current_piece_type))
-                                    current_x <= current_x - 1;
-                            end
-                            if (move_right) begin
-                                if (!check_collision(current_x + 1, current_y, current_rotation, current_piece_type))
-                                    current_x <= current_x + 1;
-                            end
-                            if (rotate) begin
-                                if (!check_collision(current_x, current_y, current_rotation + 1, current_piece_type))
-                                    current_rotation <= current_rotation + 1;
-                            end
+                    // Priority Logic: Drop > Rotate > Left > Right > Gravity
+                    // Only process ONE action per cycle to reduce timing path
+                    
+                    if (pending_drop) begin
+                        state <= HARD_DROP;
+                        pending_drop <= 0;
+                    end else if (pending_rotate) begin
+                        if (!check_collision(current_x, current_y, current_rotation + 1, current_piece_type))
+                            current_rotation <= current_rotation + 1;
+                        pending_rotate <= 0;
+                    end else if (pending_left) begin
+                        if (!check_collision(current_x - 1, current_y, current_rotation, current_piece_type))
+                            current_x <= current_x - 1;
+                        pending_left <= 0;
+                    end else if (pending_right) begin
+                        if (!check_collision(current_x + 1, current_y, current_rotation, current_piece_type))
+                            current_x <= current_x + 1;
+                        pending_right <= 0;
+                    end else begin
+                        // Gravity (runs if no other input processed this cycle, or parallel?)
+                        // Let's run gravity in parallel or as default.
+                        // If we run it here, it might conflict with movement if we are not careful.
+                        // But since we use 'else', it's mutually exclusive.
+                        // This means if you spam keys, gravity might pause?
+                        // No, gravity should be independent.
+                        // BUT, to fix timing, we want to avoid checking collision for gravity AND movement in same cycle.
+                        // Let's use the 'tick_game' to force gravity.
+                        
+                        if (tick_game || (drop_timer >= DROP_SPEED) || soft_drop) begin
+                            // Soft drop is fast gravity
+                            // If soft_drop, we increment timer fast or just drop?
+                            // Let's use a counter for soft drop too to avoid too fast.
                             
-                            // Gravity
-                            if (drop_timer >= DROP_SPEED || soft_drop) begin
+                            // Simple Gravity Logic
+                            if (drop_timer >= DROP_SPEED || (soft_drop && tick_game)) begin
                                 drop_timer <= 0;
                                 if (!check_collision(current_x, current_y + 1, current_rotation, current_piece_type)) begin
                                     current_y <= current_y + 1;
@@ -191,7 +214,7 @@ module tetris_game(
                                     state <= LOCK;
                                 end
                             end else begin
-                                drop_timer <= drop_timer + 1;
+                                if (tick_game) drop_timer <= drop_timer + 1;
                             end
                         end
                     end

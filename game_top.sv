@@ -24,9 +24,7 @@ module game_top(
     logic pix_clk; // 83.46 MHz (approx)
     logic locked;
     
-    // Instantiate Clock Wizard (Assuming clk_wiz_0 exists as per README)
-    // If not, we might need to use a simple divider or assume the user will add it.
-    // I will instantiate it as a black box.
+    // Instantiate Clock Wizard
     clk_wiz_0 clk_gen (
         .clk_in1(CLK100MHZ),
         .clk_out1(pix_clk),
@@ -34,17 +32,28 @@ module game_top(
         .locked(locked)
     );
 
+    // Game Clock Generation (25 MHz)
+    // Divide 100MHz by 4
+    logic [1:0] clk_div;
+    logic game_clk;
+    
+    always_ff @(posedge CLK100MHZ) begin
+        if (rst) clk_div <= 0;
+        else clk_div <= clk_div + 1;
+    end
+    assign game_clk = clk_div[1]; // 25 MHz
+
     // Game Tick Generation (60Hz)
-    // 83.46 MHz / 60 Hz ~= 1,391,000
-    logic [20:0] tick_counter;
+    // 25 MHz / 60 Hz ~= 416,666
+    logic [18:0] tick_counter;
     logic tick_game;
     
-    always_ff @(posedge pix_clk) begin
+    always_ff @(posedge game_clk) begin
         if (rst) begin
             tick_counter <= 0;
             tick_game <= 0;
         end else begin
-            if (tick_counter == 1391000) begin
+            if (tick_counter == 416666) begin
                 tick_counter <= 0;
                 tick_game <= 1;
             end else begin
@@ -57,8 +66,9 @@ module game_top(
     // Keyboard & Buttons
     logic key_left_ps2, key_right_ps2, key_down_ps2, key_rotate_ps2, key_drop_ps2;
     
+    // Run PS2 on game_clk for synchronization
     ps2_keyboard kb_inst (
-        .clk(pix_clk),
+        .clk(game_clk),
         .rst(rst),
         .ps2_clk(PS2_CLK),
         .ps2_data(PS2_DATA),
@@ -87,7 +97,7 @@ module game_top(
     logic [31:0] score; // Score signal
     
     tetris_game game_inst (
-        .clk(pix_clk),
+        .clk(game_clk),
         .rst(rst),
         .tick_game(tick_game),
         .key_left(key_left),
