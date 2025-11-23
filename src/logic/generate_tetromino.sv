@@ -65,16 +65,30 @@ module generate_tetromino (
 
   always_ff @(posedge clk) begin
     if (rst) begin
+        // Initialize Current to Empty
         t_out.idx.data <= `TETROMINO_EMPTY;
         t_out.rotation <= 0;
         t_out.coordinate.x <= 3;
         t_out.coordinate.y <= 0;
+        t_out.tetromino.data <= '0; // No shape
+        
+        // Initialize Next to a random piece (based on initial LFSR)
+        t_next_out.idx.data <= rand_idx;
+        t_next_out.tetromino <= shapes[rand_idx];
+        t_next_out.rotation <= 0;
+        t_next_out.coordinate.x <= 3;
+        t_next_out.coordinate.y <= 0;
+        
     end else if (enable) begin
-        t_out.idx.data <= rand_idx;
-        t_out.tetromino <= shapes[rand_idx];
-        t_out.rotation <= 0;
-        t_out.coordinate.x <= 3; // Center
-        t_out.coordinate.y <= 0; // Top
+        // Shift Next to Current
+        t_out <= t_next_out;
+        
+        // Generate New Next
+        t_next_out.idx.data <= rand_idx;
+        t_next_out.tetromino <= shapes[rand_idx];
+        t_next_out.rotation <= 0;
+        t_next_out.coordinate.x <= 3;
+        t_next_out.coordinate.y <= 0;
     end
   end
 

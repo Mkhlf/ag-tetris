@@ -25,27 +25,27 @@ module tb_PS2Receiver;
             
             // Start bit
             kdata = 0;
-            #5000 kclk = 0;
-            #5000 kclk = 1;
+            #20000 kclk = 0;
+            #20000 kclk = 1;
             
             // Data bits
             for (i = 0; i < 8; i = i + 1) begin
                 kdata = data[i];
-                #5000 kclk = 0;
-                #5000 kclk = 1;
+                #20000 kclk = 0;
+                #20000 kclk = 1;
             end
             
             // Parity bit
             kdata = parity;
-            #5000 kclk = 0;
-            #5000 kclk = 1;
+            #20000 kclk = 0;
+            #20000 kclk = 1;
             
             // Stop bit
             kdata = 1;
-            #5000 kclk = 0;
-            #5000 kclk = 1;
+            #20000 kclk = 0;
+            #20000 kclk = 1;
             
-            #20000; // Wait between bytes
+            #50000; // Wait between bytes
         end
     endtask
 

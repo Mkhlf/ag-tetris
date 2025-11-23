@@ -21,7 +21,6 @@ module tb_ps2_keyboard;
 
     always #5 clk = ~clk;
 
-    // Task to send a PS/2 byte (Copied from tb_PS2Receiver with 5us delays)
     task send_ps2_byte(input [7:0] data);
         integer i;
         logic parity;
@@ -30,27 +29,27 @@ module tb_ps2_keyboard;
             
             // Start bit
             ps2_data = 0;
-            #5000 ps2_clk = 0;
-            #5000 ps2_clk = 1;
+            #20000 ps2_clk = 0;
+            #20000 ps2_clk = 1;
             
             // Data bits
             for (i = 0; i < 8; i = i + 1) begin
                 ps2_data = data[i];
-                #5000 ps2_clk = 0;
-                #5000 ps2_clk = 1;
+                #20000 ps2_clk = 0;
+                #20000 ps2_clk = 1;
             end
             
             // Parity bit
             ps2_data = parity;
-            #5000 ps2_clk = 0;
-            #5000 ps2_clk = 1;
+            #20000 ps2_clk = 0;
+            #20000 ps2_clk = 1;
             
             // Stop bit
             ps2_data = 1;
-            #5000 ps2_clk = 0;
-            #5000 ps2_clk = 1;
+            #20000 ps2_clk = 0;
+            #20000 ps2_clk = 1;
             
-            #20000; // Wait between bytes
+            #50000; // Wait between bytes
         end
     endtask
 

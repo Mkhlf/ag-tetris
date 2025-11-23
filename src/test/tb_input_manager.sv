@@ -55,6 +55,12 @@ module tb_input_manager;
         $display("Test 2: Left DAS");
         raw_left = 1;
         @(posedge clk);
+        
+        // The input_manager samples on tick_game or just clock?
+        // It uses tick_game for DAS timers, but initial press should be immediate (one-shot).
+        // Let's pulse tick_game to be sure.
+        tick_game = 1; @(posedge clk); tick_game = 0; @(posedge clk);
+        
         #1;
         if (cmd_left) $display("PASS: Left Initial Move");
         else $display("FAIL: Left Initial Move missing");
