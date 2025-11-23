@@ -30,7 +30,8 @@ module game_control (
     DOWN,
     HARD_DROP,
     CLEAN,
-    GAME_OVER_STATE
+    GAME_OVER_STATE,
+    RESET_GAME
   } state_t;
   
   state_t ps, ns;
@@ -57,11 +58,10 @@ module game_control (
       // So score / 1000 = 1 level per 10 lines.
       current_level = (score / 1000); 
       if (current_level > 15) current_level = 15;
-      
-      // Speed: 60 frames (slow) -> 5 frames (fast)
-      // 60 - (level * 3)
-      if (current_level * 3 >= 55) drop_speed_frames = 5;
-      else drop_speed_frames = 60 - (current_level * 3);
+            // Speed: 40 frames (faster start) -> 5 frames (fast)
+       // 40 - (level * 2)
+       if (current_level * 2 >= 35) drop_speed_frames = 5;
+       else drop_speed_frames = 40 - (current_level * 2);
   end
   
   // Timers
@@ -180,7 +180,14 @@ module game_control (
         end
         
         GAME_OVER_STATE: begin
-            // Stuck until reset
+            // Restart on Middle Button (key_drop)
+            if (key_drop) begin
+                ns = RESET_GAME;
+            end
+        end
+        
+        RESET_GAME: begin
+            ns = GEN;
         end
     endcase
   end
@@ -190,6 +197,8 @@ module game_control (
     if (rst) begin
         ps <= GEN;
         f_curr.data <= '1; // Initialize to all 1s (TETROMINO_EMPTY = 3'b111)
+        t_curr.idx.data <= `TETROMINO_EMPTY;
+        t_curr.tetromino.data <= '0;
         score <= 0;
         game_over <= 0;
         drop_timer <= 0;
@@ -251,6 +260,13 @@ module game_control (
             
             GAME_OVER_STATE: begin
                 game_over <= 1;
+            end
+            
+            RESET_GAME: begin
+                f_curr.data <= '1;
+                score <= 0;
+                game_over <= 0;
+                current_level <= 0; // Reset level
             end
         endcase
     end

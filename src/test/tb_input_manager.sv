@@ -54,11 +54,12 @@ module tb_input_manager;
         // Test 2: DAS (Left)
         // Test 2: DAS (Left)
         $display("Test 2: Left DAS");
+        #1;
         raw_left = 1;
         @(posedge clk); // Trigger edge
         #1;
         if (cmd_left) $display("PASS: Left Initial Move");
-        else $display("FAIL: Left Initial Move missing");
+        else $display("FAIL: Left Initial Move missing. cmd_left=%b", cmd_left);
         
         // Now pulse tick_game for DAS logic (doesn't affect initial move)
         tick_game = 1; @(posedge clk); tick_game = 0; @(posedge clk);
@@ -82,7 +83,7 @@ module tb_input_manager;
         tick_game = 1; @(posedge clk); 
         #1;
         if (cmd_left) $display("PASS: Left DAS Triggered");
-        else $display("FAIL: Left DAS missing");
+        else $display("FAIL: Left DAS missing. cmd_left=%b", cmd_left);
         tick_game = 0; @(posedge clk);
         
         $display("Simulation Finished");
