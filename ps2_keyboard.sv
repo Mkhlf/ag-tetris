@@ -12,115 +12,93 @@ module ps2_keyboard(
     output logic key_drop    // Space
     );
 
-    // Synchronize PS/2 inputs
-    logic [1:0] ps2_clk_sync;
-    logic [1:0] ps2_data_sync;
+    logic [31:0] keycode;
+    logic [31:0] prev_keycode;
 
-    always_ff @(posedge clk) begin
-        ps2_clk_sync  <= {ps2_clk_sync[0], ps2_clk};
-        ps2_data_sync <= {ps2_data_sync[0], ps2_data};
-    end
-
-    logic ps2_clk_negedge;
-    assign ps2_clk_negedge = (ps2_clk_sync[1] && !ps2_clk_sync[0]);
-
-    // Shift register for data
-    logic [10:0] shift_reg;
-    logic [3:0]  bit_count;
-    logic [7:0]  scancode;
-    logic        scancode_ready;
+    PS2Receiver ps2_rx (
+        .clk(clk),
+        .kclk(ps2_clk),
+        .kdata(ps2_data),
+        .keycodeout(keycode)
+    );
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            bit_count <= 0;
-            scancode_ready <= 0;
-            scancode <= 0;
-        end else if (ps2_clk_negedge) begin
-            shift_reg <= {ps2_data_sync[1], shift_reg[10:1]};
-            if (bit_count == 10) begin
-                bit_count <= 0;
-                // Check start bit (0), stop bit (1), parity (odd) - skipping strict checks for simplicity
-                scancode <= shift_reg[8:1];
-                scancode_ready <= 1;
-            end else begin
-                bit_count <= bit_count + 1;
-                scancode_ready <= 0;
-            end
-        end else begin
-            scancode_ready <= 0;
-        end
-    end
-
-    // Key State Logic
-    // We need to handle break codes (F0 followed by key code) to know when key is released.
-    // Simple approach: Toggle on press, or just pulse? 
-    // For movement, we usually want continuous or press-event.
-    // Let's implement a simple state machine to track press/release.
-
-    typedef enum logic [1:0] {IDLE, BREAK, EXTENDED} state_t;
-    state_t state;
-
-    always_ff @(posedge clk) begin
-        if (rst) begin
-            state <= IDLE;
             key_left <= 0;
             key_right <= 0;
             key_down <= 0;
             key_rotate <= 0;
             key_drop <= 0;
-        end else if (scancode_ready) begin
-            case (state)
-                IDLE: begin
-                    if (scancode == 8'hF0) begin
-                        state <= BREAK;
-                    end else if (scancode == 8'hE0) begin
-                        state <= EXTENDED;
-                    end else begin
-                        // Make code processing
-                        case (scancode)
-                            8'h1C: key_left   <= 1; // A (using WASD or Arrows?) Let's use Arrows mostly, but A is 1C
-                            8'h1B: key_down   <= 1; // S
-                            8'h23: key_right  <= 1; // D
-                            8'h1D: key_rotate <= 1; // W
-                            8'h29: key_drop   <= 1; // Space
-                            // Arrow keys are extended usually, handled in EXTENDED state
+            prev_keycode <= 0;
+        end else begin
+            if (keycode != prev_keycode) begin
+                prev_keycode <= keycode;
+                
+                // Decode Logic
+                // keycode[7:0] is the newest byte
+                // keycode[15:8] is the previous byte
+                // keycode[23:16] is the byte before that
+                
+                // Extended Keys (Arrows)
+                // Press: E0 XX
+                // Release: E0 F0 XX
+                
+                // Normal Keys (Space)
+                // Press: XX
+                // Release: F0 XX
+                
+                logic [7:0] new_byte;
+                logic [7:0] prev_byte;
+                logic [7:0] prev_prev_byte;
+                
+                new_byte = keycode[7:0];
+                prev_byte = keycode[15:8];
+                prev_prev_byte = keycode[23:16];
+                
+                // Check for Release (F0 XX or E0 F0 XX)
+                if (prev_byte == 8'hF0) begin
+                    // Normal Release
+                    case (new_byte)
+                        8'h29: key_drop <= 0; // Space
+                        8'h1C: key_left <= 0; // A
+                        8'h23: key_right <= 0; // D
+                        8'h1B: key_down <= 0; // S
+                        8'h1D: key_rotate <= 0; // W
+                    endcase
+                    
+                    // Extended Release (E0 F0 XX)
+                    if (prev_prev_byte == 8'hE0) begin
+                        case (new_byte)
+                            8'h6B: key_left <= 0; // Left Arrow
+                            8'h74: key_right <= 0; // Right Arrow
+                            8'h72: key_down <= 0; // Down Arrow
+                            8'h75: key_rotate <= 0; // Up Arrow
                         endcase
                     end
                 end
-                EXTENDED: begin
-                    if (scancode == 8'hF0) begin
-                        state <= BREAK; // Break of extended key
-                    end else begin
-                        // Extended Make code
-                        case (scancode)
-                            8'h6B: key_left   <= 1; // Left Arrow
-                            8'h74: key_right  <= 1; // Right Arrow
-                            8'h72: key_down   <= 1; // Down Arrow
+                // Check for Press (Not F0)
+                else if (new_byte != 8'hF0 && new_byte != 8'hE0) begin
+                    // Extended Press (E0 XX)
+                    if (prev_byte == 8'hE0) begin
+                        case (new_byte)
+                            8'h6B: key_left <= 1; // Left Arrow
+                            8'h74: key_right <= 1; // Right Arrow
+                            8'h72: key_down <= 1; // Down Arrow
                             8'h75: key_rotate <= 1; // Up Arrow
                         endcase
-                        state <= IDLE;
+                    end
+                    // Normal Press (XX)
+                    else begin
+                        case (new_byte)
+                            8'h29: key_drop <= 1; // Space
+                            8'h1C: key_left <= 1; // A
+                            8'h23: key_right <= 1; // D
+                            8'h1B: key_down <= 1; // S
+                            8'h1D: key_rotate <= 1; // W
+                        endcase
                     end
                 end
-                BREAK: begin
-                    // Break code received, next is the key code to clear
-                    // If we were in EXTENDED before F0, we might need to handle that, but usually F0 comes after E0?
-                    // Actually: E0 F0 XX is break of extended. F0 XX is break of normal.
-                    // My state machine is a bit simple. 
-                    // Let's just clear the key if we see its code after F0.
-                    case (scancode)
-                        8'h1C: key_left   <= 0;
-                        8'h1B: key_down   <= 0;
-                        8'h23: key_right  <= 0;
-                        8'h1D: key_rotate <= 0;
-                        8'h29: key_drop   <= 0;
-                        8'h6B: key_left   <= 0;
-                        8'h74: key_right  <= 0;
-                        8'h72: key_down   <= 0;
-                        8'h75: key_rotate <= 0;
-                    endcase
-                    state <= IDLE;
-                end
-            endcase
+            end
         end
     end
 

@@ -96,6 +96,21 @@ module game_top(
     logic game_over;
     logic [31:0] score; // Score signal
     
+    // Input Synchronization (Debouncing / One-Shot)
+    logic key_drop_pulse, key_rotate_pulse;
+    
+    input_synchronizer sync_drop (
+        .clk(game_clk),
+        .in_signal(key_drop),
+        .out_pulse(key_drop_pulse)
+    );
+    
+    input_synchronizer sync_rotate (
+        .clk(game_clk),
+        .in_signal(key_rotate),
+        .out_pulse(key_rotate_pulse)
+    );
+
     tetris_game game_inst (
         .clk(game_clk),
         .rst(rst),
@@ -103,8 +118,8 @@ module game_top(
         .key_left(key_left),
         .key_right(key_right),
         .key_down(key_down),
-        .key_rotate(key_rotate),
-        .key_drop(key_drop),
+        .key_rotate(key_rotate_pulse), // Use synchronized pulse
+        .key_drop(key_drop_pulse),     // Use synchronized pulse
         .grid(grid),
         .current_piece_type(current_piece_type),
         .current_rotation(current_rotation),

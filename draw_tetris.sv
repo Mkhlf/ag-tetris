@@ -119,8 +119,9 @@ module draw_tetris(
                         end
                         
                         // Check Current Piece
-                        if (grid_col >= current_x && grid_col < current_x + 4 &&
-                            grid_row >= current_y && grid_row < current_y + 4) begin
+                        // Use signed comparison for X to handle pieces at left edge (where current_x < 0)
+                        if ($signed({1'b0, grid_col}) >= current_x && $signed({1'b0, grid_col}) < current_x + 4 &&
+                            $signed({1'b0, grid_row}) >= current_y && $signed({1'b0, grid_row}) < current_y + 4) begin
                             
                             int r, c;
                             r = grid_row - current_y;
