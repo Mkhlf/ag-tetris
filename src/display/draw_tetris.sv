@@ -215,7 +215,40 @@ module draw_tetris(
                      end
                  end
             end
+            
+            // 5. Game Over Overlay
+            if (game_over) begin
+                // Draw over the center of the grid
+                if (curr_x >= GRID_X_START + 60 && curr_x < GRID_X_START + GRID_W - 60 &&
+                    curr_y >= GRID_Y_START + 200 && curr_y < GRID_Y_START + 300) begin
+                    
+                    // Red Box
+                    vga_r = 4'hF; vga_g = 4'h0; vga_b = 4'h0;
+                    
+                    // Black X
+                    if ((curr_x - (GRID_X_START + 60)) == (curr_y - (GRID_Y_START + 200)) || 
+                        (curr_x - (GRID_X_START + 60)) == (100 - (curr_y - (GRID_Y_START + 200)))) begin
+                        vga_r = 0; vga_g = 0; vga_b = 0;
+                    end
+                end
+            end
+            
+            // 6. Debug Heartbeat (Bottom Right of Grid)
+            // Flashes every ~0.5s (assuming 83MHz pix_clk, bit 25 toggles every 0.4s)
+            // We use a local counter for this since we don't have a time signal
+            if (curr_x >= GRID_X_START + GRID_W - 10 && curr_x < GRID_X_START + GRID_W &&
+                curr_y >= GRID_Y_START + GRID_H - 10 && curr_y < GRID_Y_START + GRID_H) begin
+                 if (heartbeat_cnt[25]) begin
+                     vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'hF;
+                 end
+            end
         end
+    end
+    
+    // Heartbeat Counter
+    logic [25:0] heartbeat_cnt;
+    always_ff @(posedge clk) begin
+        heartbeat_cnt <= heartbeat_cnt + 1;
     end
 
 endmodule

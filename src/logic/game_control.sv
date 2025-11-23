@@ -22,6 +22,7 @@ module game_control (
   // States
   typedef enum logic [3:0] {
     GEN,
+    GEN_WAIT,
     IDLE,
     MOVE_LEFT,
     MOVE_RIGHT,
@@ -121,7 +122,7 @@ module game_control (
   always_comb begin
     t_check = t_curr; // Default
     case (ps)
-        GEN: t_check = t_gen;
+        GEN_WAIT: t_check = t_gen; // Check the generated piece
         MOVE_LEFT: t_check.coordinate.x = t_curr.coordinate.x - 1;
         MOVE_RIGHT: t_check.coordinate.x = t_curr.coordinate.x + 1;
         DOWN: t_check.coordinate.y = t_curr.coordinate.y + 1;
@@ -136,8 +137,11 @@ module game_control (
     ns = ps;
     case (ps)
         GEN: begin
-            // Wait for generator? It's 1 cycle.
-            // Check if spawn is valid
+            ns = GEN_WAIT;
+        end
+        
+        GEN_WAIT: begin
+            // t_gen is now stable
             if (valid) ns = IDLE;
             else ns = GAME_OVER_STATE;
         end
@@ -200,7 +204,7 @@ module game_control (
         
         // Data Path Updates
         case (ps)
-            GEN: begin
+            GEN_WAIT: begin
                 t_curr <= t_gen;
             end
             
