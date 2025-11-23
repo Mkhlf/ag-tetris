@@ -22,45 +22,54 @@ module generate_tetromino (
 
   assign rand_idx = lfsr[2:0] % `NUMBER_OF_TETROMINO;
 
-  // Tetromino Definitions
-  tetromino_t shapes [0:6];
+  tetromino_t current_shape;
   
-  initial begin
-    // I
-    shapes[`TETROMINO_I_IDX].data[0] = {4'b0000, 4'b1111, 4'b0000, 4'b0000};
-    shapes[`TETROMINO_I_IDX].data[1] = {4'b0010, 4'b0010, 4'b0010, 4'b0010};
-    shapes[`TETROMINO_I_IDX].data[2] = {4'b0000, 4'b1111, 4'b0000, 4'b0000};
-    shapes[`TETROMINO_I_IDX].data[3] = {4'b0010, 4'b0010, 4'b0010, 4'b0010};
-    // J
-    shapes[`TETROMINO_J_IDX].data[0] = {4'b1000, 4'b1110, 4'b0000, 4'b0000};
-    shapes[`TETROMINO_J_IDX].data[1] = {4'b0110, 4'b0100, 4'b0100, 4'b0000};
-    shapes[`TETROMINO_J_IDX].data[2] = {4'b0000, 4'b1110, 4'b0010, 4'b0000};
-    shapes[`TETROMINO_J_IDX].data[3] = {4'b0010, 4'b0010, 4'b0110, 4'b0000};
-    // L
-    shapes[`TETROMINO_L_IDX].data[0] = {4'b0010, 4'b1110, 4'b0000, 4'b0000};
-    shapes[`TETROMINO_L_IDX].data[1] = {4'b0100, 4'b0100, 4'b0110, 4'b0000};
-    shapes[`TETROMINO_L_IDX].data[2] = {4'b0000, 4'b1110, 4'b1000, 4'b0000};
-    shapes[`TETROMINO_L_IDX].data[3] = {4'b1100, 4'b0100, 4'b0100, 4'b0000};
-    // O
-    shapes[`TETROMINO_O_IDX].data[0] = {4'b0110, 4'b0110, 4'b0000, 4'b0000};
-    shapes[`TETROMINO_O_IDX].data[1] = {4'b0110, 4'b0110, 4'b0000, 4'b0000};
-    shapes[`TETROMINO_O_IDX].data[2] = {4'b0110, 4'b0110, 4'b0000, 4'b0000};
-    shapes[`TETROMINO_O_IDX].data[3] = {4'b0110, 4'b0110, 4'b0000, 4'b0000};
-    // S
-    shapes[`TETROMINO_S_IDX].data[0] = {4'b0110, 4'b1100, 4'b0000, 4'b0000};
-    shapes[`TETROMINO_S_IDX].data[1] = {4'b0100, 4'b0110, 4'b0010, 4'b0000};
-    shapes[`TETROMINO_S_IDX].data[2] = {4'b0000, 4'b0110, 4'b1100, 4'b0000};
-    shapes[`TETROMINO_S_IDX].data[3] = {4'b1000, 4'b1100, 4'b0100, 4'b0000};
-    // T
-    shapes[`TETROMINO_T_IDX].data[0] = {4'b0100, 4'b1110, 4'b0000, 4'b0000};
-    shapes[`TETROMINO_T_IDX].data[1] = {4'b0100, 4'b0110, 4'b0100, 4'b0000};
-    shapes[`TETROMINO_T_IDX].data[2] = {4'b0000, 4'b1110, 4'b0100, 4'b0000};
-    shapes[`TETROMINO_T_IDX].data[3] = {4'b0100, 4'b1100, 4'b0100, 4'b0000};
-    // Z
-    shapes[`TETROMINO_Z_IDX].data[0] = {4'b1100, 4'b0110, 4'b0000, 4'b0000};
-    shapes[`TETROMINO_Z_IDX].data[1] = {4'b0010, 4'b0110, 4'b0100, 4'b0000};
-    shapes[`TETROMINO_Z_IDX].data[2] = {4'b0000, 4'b1100, 4'b0110, 4'b0000};
-    shapes[`TETROMINO_Z_IDX].data[3] = {4'b0100, 4'b1100, 4'b1000, 4'b0000};
+  always_comb begin
+    case (rand_idx)
+        `TETROMINO_I_IDX: begin
+            current_shape.data[0] = {4'b0000, 4'b1111, 4'b0000, 4'b0000};
+            current_shape.data[1] = {4'b0010, 4'b0010, 4'b0010, 4'b0010};
+            current_shape.data[2] = {4'b0000, 4'b1111, 4'b0000, 4'b0000};
+            current_shape.data[3] = {4'b0010, 4'b0010, 4'b0010, 4'b0010};
+        end
+        `TETROMINO_J_IDX: begin
+            current_shape.data[0] = {4'b1000, 4'b1110, 4'b0000, 4'b0000};
+            current_shape.data[1] = {4'b0110, 4'b0100, 4'b0100, 4'b0000};
+            current_shape.data[2] = {4'b0000, 4'b1110, 4'b0010, 4'b0000};
+            current_shape.data[3] = {4'b0010, 4'b0010, 4'b0110, 4'b0000};
+        end
+        `TETROMINO_L_IDX: begin
+            current_shape.data[0] = {4'b0010, 4'b1110, 4'b0000, 4'b0000};
+            current_shape.data[1] = {4'b0100, 4'b0100, 4'b0110, 4'b0000};
+            current_shape.data[2] = {4'b0000, 4'b1110, 4'b1000, 4'b0000};
+            current_shape.data[3] = {4'b1100, 4'b0100, 4'b0100, 4'b0000};
+        end
+        `TETROMINO_O_IDX: begin
+            current_shape.data[0] = {4'b0110, 4'b0110, 4'b0000, 4'b0000};
+            current_shape.data[1] = {4'b0110, 4'b0110, 4'b0000, 4'b0000};
+            current_shape.data[2] = {4'b0110, 4'b0110, 4'b0000, 4'b0000};
+            current_shape.data[3] = {4'b0110, 4'b0110, 4'b0000, 4'b0000};
+        end
+        `TETROMINO_S_IDX: begin
+            current_shape.data[0] = {4'b0110, 4'b1100, 4'b0000, 4'b0000};
+            current_shape.data[1] = {4'b0100, 4'b0110, 4'b0010, 4'b0000};
+            current_shape.data[2] = {4'b0000, 4'b0110, 4'b1100, 4'b0000};
+            current_shape.data[3] = {4'b1000, 4'b1100, 4'b0100, 4'b0000};
+        end
+        `TETROMINO_T_IDX: begin
+            current_shape.data[0] = {4'b0100, 4'b1110, 4'b0000, 4'b0000};
+            current_shape.data[1] = {4'b0100, 4'b0110, 4'b0100, 4'b0000};
+            current_shape.data[2] = {4'b0000, 4'b1110, 4'b0100, 4'b0000};
+            current_shape.data[3] = {4'b0100, 4'b1100, 4'b0100, 4'b0000};
+        end
+        `TETROMINO_Z_IDX: begin
+            current_shape.data[0] = {4'b1100, 4'b0110, 4'b0000, 4'b0000};
+            current_shape.data[1] = {4'b0010, 4'b0110, 4'b0100, 4'b0000};
+            current_shape.data[2] = {4'b0000, 4'b1100, 4'b0110, 4'b0000};
+            current_shape.data[3] = {4'b0100, 4'b1100, 4'b1000, 4'b0000};
+        end
+        default: current_shape = '0;
+    endcase
   end
 
   always_ff @(posedge clk) begin
@@ -74,7 +83,7 @@ module generate_tetromino (
         
         // Initialize Next to a random piece (based on initial LFSR)
         t_next_out.idx.data <= rand_idx;
-        t_next_out.tetromino <= shapes[rand_idx];
+        t_next_out.tetromino <= current_shape;
         t_next_out.rotation <= 0;
         t_next_out.coordinate.x <= 3;
         t_next_out.coordinate.y <= 0;
@@ -85,7 +94,7 @@ module generate_tetromino (
         
         // Generate New Next
         t_next_out.idx.data <= rand_idx;
-        t_next_out.tetromino <= shapes[rand_idx];
+        t_next_out.tetromino <= current_shape;
         t_next_out.rotation <= 0;
         t_next_out.coordinate.x <= 3;
         t_next_out.coordinate.y <= 0;

@@ -126,9 +126,16 @@ module draw_tetris(
                         sprite_addr_y = block_pixel_y[4:1];
                         intensity = sprite_pixel[7:4];
                         
-                        vga_r = color_map[cell_color_idx][11:8];
-                        vga_g = color_map[cell_color_idx][7:4];
-                        vga_b = color_map[cell_color_idx][3:0];
+                        if (game_over) begin
+                            // Grey Blocks for Game Over
+                            vga_r = 4'h6;
+                            vga_g = 4'h6;
+                            vga_b = 4'h6;
+                        end else begin
+                            vga_r = color_map[cell_color_idx][11:8];
+                            vga_g = color_map[cell_color_idx][7:4];
+                            vga_b = color_map[cell_color_idx][3:0];
+                        end
                         
                         if (intensity != 4'hF) begin
                             vga_r = vga_r >> 1;
@@ -215,24 +222,6 @@ module draw_tetris(
                      end
                  end
             end
-            
-            // 5. Game Over Overlay
-            if (game_over) begin
-                // Draw over the center of the grid
-                if (curr_x >= GRID_X_START + 60 && curr_x < GRID_X_START + GRID_W - 60 &&
-                    curr_y >= GRID_Y_START + 200 && curr_y < GRID_Y_START + 300) begin
-                    
-                    // Red Box
-                    vga_r = 4'hF; vga_g = 4'h0; vga_b = 4'h0;
-                    
-                    // Black X
-                    if ((curr_x - (GRID_X_START + 60)) == (curr_y - (GRID_Y_START + 200)) || 
-                        (curr_x - (GRID_X_START + 60)) == (100 - (curr_y - (GRID_Y_START + 200)))) begin
-                        vga_r = 0; vga_g = 0; vga_b = 0;
-                    end
-                end
-            end
-            
             // 6. Debug Heartbeat (Bottom Right of Grid)
             // Flashes every ~0.5s (assuming 83MHz pix_clk, bit 25 toggles every 0.4s)
             // We use a local counter for this since we don't have a time signal

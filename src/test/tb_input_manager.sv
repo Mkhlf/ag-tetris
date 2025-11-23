@@ -24,6 +24,8 @@ module tb_input_manager;
     );
 
     always #5 clk = ~clk; // 100MHz
+    
+    always @(posedge cmd_left) $display("DEBUG: cmd_left ROSE at %t", $time);
 
     initial begin
         clk = 0; rst = 1; tick_game = 0;
@@ -67,23 +69,35 @@ module tb_input_manager;
         // Wait for DAS Delay (16 frames)
         // We need to toggle tick_game
         repeat(15) begin
-            tick_game = 1; @(posedge clk); tick_game = 0; @(posedge clk);
+            tick_game = 1; @(posedge clk); 
+            // $display("Delay Loop: timer_left = %d", uut.timer_left);
+            tick_game = 0; @(posedge clk);
             if (cmd_left) $display("FAIL: Left triggered during delay");
         end
         
         // 16th frame
-        tick_game = 1; @(posedge clk); tick_game = 0; @(posedge clk);
+        tick_game = 1; @(posedge clk); 
+        $display("After 16th frame: timer_left = %d", uut.timer_left);
+        tick_game = 0; @(posedge clk);
         
         // We need 4 more ticks for speed (DAS_SPEED = 4)
         repeat(4) begin
-            tick_game = 1; @(posedge clk); tick_game = 0; @(posedge clk);
+            tick_game = 1; @(posedge clk); 
+            $display("Speed Loop: timer_left = %d", uut.timer_left);
+            tick_game = 0; @(posedge clk);
         end
         
         // Now timer should be 20. Next tick should trigger.
-        tick_game = 1; @(posedge clk); 
-        #1;
+        $display("Pre-Trigger: timer_left = %d", uut.timer_left);
+        #1; // Move away from clock edge
+        tick_game = 1; 
+        @(posedge clk); 
+        @(negedge clk); // Wait for middle of cycle
+        $display("Post-Trigger: timer_left = %d, cmd_left = %b", uut.timer_left, cmd_left);
+        
         if (cmd_left) $display("PASS: Left DAS Triggered");
-        else $display("FAIL: Left DAS missing. cmd_left=%b", cmd_left);
+        else $display("FAIL: Left DAS missing");
+        
         tick_game = 0; @(posedge clk);
         
         $display("Simulation Finished");

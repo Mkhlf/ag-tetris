@@ -31,7 +31,9 @@ module game_control (
     HARD_DROP,
     CLEAN,
     GAME_OVER_STATE,
-    RESET_GAME
+    RESET_GAME,
+    WARMUP,
+    DROP_LOCKOUT
   } state_t;
   
   state_t ps, ns;
@@ -74,7 +76,7 @@ module game_control (
   generate_tetromino gen (
     .clk(clk),
     .rst(rst),
-    .enable(ps == GEN),
+    .enable(ps == GEN || ps == WARMUP),
     .t_out(t_gen),
     .t_next_out(t_gen_next)
   );
@@ -176,7 +178,7 @@ module game_control (
         end
         
         CLEAN: begin
-            if (clean_done) ns = GEN;
+            if (clean_done) ns = DROP_LOCKOUT;
         end
         
         GAME_OVER_STATE: begin
@@ -187,7 +189,15 @@ module game_control (
         end
         
         RESET_GAME: begin
+            ns = WARMUP;
+        end
+        
+        WARMUP: begin
             ns = GEN;
+        end
+        
+        DROP_LOCKOUT: begin
+            if (!key_drop) ns = GEN;
         end
     endcase
   end
@@ -266,7 +276,6 @@ module game_control (
                 f_curr.data <= '1;
                 score <= 0;
                 game_over <= 0;
-                current_level <= 0; // Reset level
             end
         endcase
     end
