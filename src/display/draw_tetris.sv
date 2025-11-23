@@ -12,6 +12,9 @@ module draw_tetris(
     input  logic           game_over,
     input  tetromino_ctrl  t_next, // Next piece
     input  logic [3:0]     current_level, // Game level
+    // Ghost pieces 
+    input  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
+    input  tetromino_ctrl  t_curr, // Current piece for ghost rendering
     
     // Sprite Interface
     output logic [3:0]     sprite_addr_x,
@@ -109,6 +112,12 @@ module draw_tetris(
                     // Inside Grid
                     cell_color_idx = 0;
                     
+                    // Grid Lines (Dark Grey)
+                    if (block_pixel_x == 0 || block_pixel_x == 31 || 
+                        block_pixel_y == 0 || block_pixel_y == 31) begin
+                        vga_r = 4'h2; vga_g = 4'h2; vga_b = 4'h2;
+                    end
+                    
                     // Check Grid Bounds
                     if (grid_col >= 0 && grid_col < `FIELD_HORIZONTAL &&
                         grid_row >= 0 && grid_row < `FIELD_VERTICAL_DISPLAY) begin
@@ -117,6 +126,34 @@ module draw_tetris(
                         // Rows 0 and 1 are the hidden spawn area.
                         if (display.data[grid_row + 2][grid_col].data != `TETROMINO_EMPTY) begin
                             cell_color_idx = display.data[grid_row + 2][grid_col].data + 1;
+                        end
+                        
+                        // Ghost Piece Rendering (Only if cell is empty and game not over)
+                        if (cell_color_idx == 0 && !game_over) begin
+                            // Calculate relative position to ghost
+                            // grid_row + 2 is the actual field row index
+                            if ((grid_row + 2) >= ghost_y && (grid_row + 2) < ghost_y + 4 &&
+                                grid_col >= t_curr.coordinate.x && grid_col < t_curr.coordinate.x + 4) begin
+                                
+                                if (t_curr.tetromino.data[t_curr.rotation][grid_row + 2 - ghost_y][grid_col - t_curr.coordinate.x]) begin
+                                    // Draw Ghost (Grey Hollow or Solid)
+                                    // Let's do a medium grey
+                                    vga_r = 4'h4; vga_g = 4'h4; vga_b = 4'h4;
+                                    
+                                    // Optional: Sprite texture for ghost?
+                                    // For now, just solid color is fine, or maybe use the sprite logic with grey color?
+                                    // Let's use sprite logic to make it look like a "ghost block"
+                                    sprite_addr_x = block_pixel_x[4:1];
+                                    sprite_addr_y = block_pixel_y[4:1];
+                                    intensity = sprite_pixel[7:4];
+                                    
+                                    if (intensity != 4'hF) begin
+                                        vga_r = vga_r >> 1;
+                                        vga_g = vga_g >> 1;
+                                        vga_b = vga_b >> 1;
+                                    end
+                                end
+                            end
                         end
                     end
                     

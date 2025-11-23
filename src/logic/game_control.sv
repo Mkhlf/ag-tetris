@@ -16,7 +16,9 @@ module game_control (
     output  logic [31:0]    score,
     output  logic           game_over,
     output  tetromino_ctrl  t_next_disp,
-    output  logic [3:0]     current_level_out
+    output  logic [3:0]     current_level_out,
+    output  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
+    output  tetromino_ctrl  t_curr_out
   );
 
   // States
@@ -55,20 +57,15 @@ module game_control (
   
   always_comb begin
       // Level increases every 10 lines (approx 1000 score / 100)
-      // Or just use score / 1000? The user code had score / 10 which is very fast leveling.
-      // Let's stick to the previous logic: score / 10 (assuming score is lines * 10? No, lines * 100).
-      // So score / 1000 = 1 level per 10 lines.
       current_level = (score / 1000); 
       if (current_level > 15) current_level = 15;
-            // Speed: 40 frames (faster start) -> 5 frames (fast)
-       // 40 - (level * 2)
+       // Speed: 40 frames (faster start) -> 5 frames (fast)
        if (current_level * 2 >= 35) drop_speed_frames = 5;
        else drop_speed_frames = 40 - (current_level * 2);
   end
   
   // Timers
   integer drop_timer;
-  // localparam DROP_SPEED removed in favor of dynamic speed
   
   // Submodules
   
@@ -115,7 +112,15 @@ module game_control (
     .lines_cleared(lines_cleared),
     .done(clean_done)
   );
-  
+
+  // Ghost Calculation
+  ghost_calc ghost (
+    .t_curr(t_curr),
+    .f(f_curr),
+    .ghost_y(ghost_y)
+  );
+
+  assign t_curr_out = t_curr;
   assign display = f_disp;
   assign t_next_disp = t_gen_next;
   assign current_level_out = current_level;

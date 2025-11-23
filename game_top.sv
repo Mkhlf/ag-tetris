@@ -137,6 +137,8 @@ module game_top(
     logic game_over;
     tetromino_ctrl t_next; // Next piece signal
     logic [3:0] current_level;
+    logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y;
+    tetromino_ctrl t_curr;
     
     game_control game_inst (
         .clk(game_clk),
@@ -151,7 +153,9 @@ module game_top(
         .score(score),
         .game_over(game_over),
         .t_next_disp(t_next),
-        .current_level_out(current_level)
+        .current_level_out(current_level),
+        .ghost_y(ghost_y),
+        .t_curr_out(t_curr)
     );
 
     // VGA Output (Raw)
@@ -195,6 +199,8 @@ module game_top(
         .game_over(game_over),
         .t_next(t_next),
         .current_level(current_level),
+        .ghost_y(ghost_y),
+        .t_curr(t_curr),
         .sprite_addr_x(sprite_addr_x),
         .sprite_addr_y(sprite_addr_y),
         .sprite_pixel(sprite_pixel),
