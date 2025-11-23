@@ -1,9 +1,10 @@
-    // New Interface for Refactored Input System
-    // We need to output the raw scan code and a make/break signal
-    // The PS2Receiver outputs a 32-bit code.
-    // We need to parse it to find the relevant byte and make/break status.
-    
-    // Output signals for the new modules
+`timescale 1ns / 1ps
+
+module ps2_keyboard(
+    input  wire logic clk,
+    input  wire logic rst,
+    input  wire logic ps2_clk,
+    input  wire logic ps2_data,
     output logic [7:0] current_scan_code,
     output logic       current_make_break // 1 = Make (Press), 0 = Break (Release)
     );
@@ -37,34 +38,12 @@
                 
                 // Determine Make/Break and Scan Code
                 if (prev_byte == 8'hF0) begin
-                    // Normal Release
+                    // Normal Release (F0 XX)
                     current_make_break <= 0;
                     current_scan_code <= new_byte;
                 end else if (new_byte == 8'hF0) begin
-                    // Just the break prefix, wait for next byte?
-                    // PS2Receiver shifts in. If we see F0 as new_byte, the *next* cycle will have the code.
-                    // But this block triggers on `keycode != prev_keycode`.
-                    // So we only see complete shifts?
-                    // No, PS2Receiver shifts bits.
-                    // Let's look at PS2Receiver again. It shifts bytes.
-                    // If we receive F0, we need to know it's a break.
-                    // The logic above `prev_byte == 8'hF0` handles the case where F0 was received *previously*.
-                    // But `keycode` updates byte by byte.
-                    // So:
-                    // 1. Receive F0. keycode ends in F0.
-                    // 2. Receive Code. keycode ends in Code, prev byte is F0. -> Release.
-                    
-                    // What if we receive E0?
-                    // 1. Receive E0.
-                    // 2. Receive Code. keycode ends in Code, prev is E0. -> Extended Press.
-                    
-                    // What if E0 F0 Code?
-                    // 1. E0
-                    // 2. F0 (prev E0)
-                    // 3. Code (prev F0, prevprev E0) -> Extended Release.
+                    // Break prefix received, wait for next byte
                 end else begin
-                    // Not F0.
-                    
                     // Check for Extended Release (E0 F0 XX)
                     if (prev_byte == 8'hF0 && prev_prev_byte == 8'hE0) begin
                         current_make_break <= 0;
@@ -85,13 +64,4 @@
         end
     end
 
-    // Legacy outputs (optional, or remove if we fully switch)
-    // For now, let's keep the module interface clean and remove the old logic.
-    // But wait, game_top expects key_left, etc.
-    // We should probably update game_top to instantiate the new keyboard_to_1_clock modules
-    // and use this module just to drive them.
-    // So I will remove the old outputs from the port list in the replacement?
-    // The tool instruction says "Replace the decoding logic".
-    // I should probably change the port list too.
-    // Let's do a full file replacement to be safe and clean.
-
+endmodule
