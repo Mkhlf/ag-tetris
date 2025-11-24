@@ -103,13 +103,35 @@ module game_top(
         end
     end
 
+    // Debounce Buttons
+    logic btn_l_db, btn_r_db, btn_u_db, btn_d_db, btn_c_db;
+    logic unused_db;
+    
+    debouncer db_lr (
+        .clk(game_clk),
+        .I0(btn_l), .I1(btn_r),
+        .O0(btn_l_db), .O1(btn_r_db)
+    );
+    
+    debouncer db_ud (
+        .clk(game_clk),
+        .I0(btn_u), .I1(btn_d),
+        .O0(btn_u_db), .O1(btn_d_db)
+    );
+    
+    debouncer db_c (
+        .clk(game_clk),
+        .I0(btn_c), .I1(0),
+        .O0(btn_c_db), .O1(unused_db)
+    );
+
     // Combine with Buttons (Active High)
     logic raw_left, raw_right, raw_down, raw_rotate, raw_drop;
-    assign raw_left   = raw_left_kb   | btn_l;
-    assign raw_right  = raw_right_kb  | btn_r;
-    assign raw_down   = raw_down_kb   | btn_d;
-    assign raw_rotate = raw_rotate_kb | btn_u;
-    assign raw_drop   = raw_drop_kb   | btn_c;
+    assign raw_left   = raw_left_kb   | btn_l_db;
+    assign raw_right  = raw_right_kb  | btn_r_db;
+    assign raw_down   = raw_down_kb   | btn_d_db;
+    assign raw_rotate = raw_rotate_kb | btn_u_db;
+    assign raw_drop   = raw_drop_kb   | btn_c_db;
 
     // Input Manager (DAS & One-Shot)
     logic key_left, key_right, key_down, key_rotate, key_drop;
