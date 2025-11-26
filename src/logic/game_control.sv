@@ -25,15 +25,6 @@ module game_control (
     output  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
     output  tetromino_ctrl  t_curr_out,
     
-    // NEW: Spin detection outputs for visual effects
-    output  logic           spin_t_flag,
-    output  logic           spin_s_flag,
-    output  logic           spin_z_flag,
-    output  logic           spin_j_flag,
-    output  logic           spin_l_flag,
-    output  logic           spin_i_flag,
-    output  logic           is_mini_spin,     // Mini T-spin flag
-    output  logic           tetris_flag,      // 4-line clear flag
     output  logic [7:0]     total_lines_cleared_out // Exposed for level bar
   );
 
@@ -202,10 +193,8 @@ module game_control (
   // Timers
   integer drop_timer;
   integer lock_timer; // NEW: Lock delay timer
-  integer msg_timer;  // NEW: Message duration timer
   
   localparam LOCK_DELAY_MAX = 30; // ~0.5s at 60Hz
-  localparam MSG_DURATION = 120;  // ~2s at 60Hz
   
   // Submodules
   generate_tetromino gen (
@@ -271,6 +260,7 @@ module game_control (
         MOVE_RIGHT: t_check.coordinate.x = t_curr.coordinate.x + 1;
         DOWN: t_check.coordinate.y = t_curr.coordinate.y + 1;
         HARD_DROP: t_check.coordinate.y = t_curr.coordinate.y + 1;
+            IDLE: t_check.coordinate.y = t_curr.coordinate.y + 1; 
         ROTATE: begin
             t_check = t_rotated;
             t_check.coordinate.x = t_rotated.coordinate.x + current_kick.x;
@@ -297,13 +287,15 @@ module game_control (
             else ns = GAME_OVER_STATE;
         end
         
-        IDLE: begin
+        IDLE: begin            
             if (key_drop) ns = HARD_DROP;
             else if (key_hold && !hold_used) ns = HOLD;
             else if (key_rotate_cw || key_rotate_ccw) ns = ROTATE;
             else if (key_left) ns = MOVE_LEFT;
             else if (key_right) ns = MOVE_RIGHT;
             else if (drop_timer >= drop_speed_frames || key_down) ns = DOWN;
+            // Lock Delay Logic: If on ground (!valid) and timer expired -> Lock
+            else if (!valid && lock_timer >= LOCK_DELAY_MAX) ns = CLEAN;
         end
         
         MOVE_LEFT: ns = IDLE;
@@ -325,12 +317,7 @@ module game_control (
             if (valid) begin
                 ns = IDLE;
             end else begin
-                // Collision detected
-                if (lock_timer < LOCK_DELAY_MAX) begin
-                    ns = IDLE; // Allow sliding/rotating
-                end else begin
-                    ns = CLEAN; // Lock piece
-                end
+                ns = IDLE;
             end
         end
         
@@ -497,26 +484,33 @@ module game_control (
         last_move_was_rotation <= 0;
         kick_used <= 0;
         lock_timer <= 0;
-        msg_timer <= 0;
-        // Clear spin flags
-        spin_t_flag <= 0;
-        spin_s_flag <= 0;
-        spin_z_flag <= 0;
-        spin_j_flag <= 0;
-        spin_l_flag <= 0;
-        spin_i_flag <= 0;
-        is_mini_spin <= 0;
-        tetris_flag <= 0;
     end else begin
         ps <= ns;
         
         // Timer Logic
+        // if (tick_game) begin
+        //     if (ps == IDLE) drop_timer <= drop_timer + 1;
+        // end
+
+        // Timer Logic
         if (tick_game) begin
-            if (ps == IDLE) drop_timer <= drop_timer + 1;
-            if (msg_timer > 0) msg_timer <= msg_timer - 1;
+            if (ps == IDLE) begin
+                if (valid) begin
+                    drop_timer <= drop_timer + 1;
+                end
+                
+                // Lock timer: increment when on ground, reset when in air
+                if (!valid) begin
+                    if (lock_timer < LOCK_DELAY_MAX)
+                        lock_timer <= lock_timer + 1;
+                end else begin
+                    lock_timer <= 0;
+                end
+            end
         end
+
         if (ps == DOWN || ps == GEN) drop_timer <= 0;
-        
+
         // Data Path Updates
         case (ps)
             IDLE: begin
@@ -533,22 +527,17 @@ module game_control (
                 if (key_left || key_right || key_down) begin
                     last_move_was_rotation <= 0;
                 end
+
+                // Lock piece when timer expires (right before transitioning to CLEAN)
+                if (ns == CLEAN) begin
+                    f_curr <= f_disp;
+                end
             end
             
-            // Clear flags when timer expires
-            if (msg_timer == 0) begin
-                spin_t_flag <= 0;
-                spin_s_flag <= 0;
-                spin_z_flag <= 0;
-                spin_j_flag <= 0;
-                spin_l_flag <= 0;
-                spin_i_flag <= 0;
-                is_mini_spin <= 0;
-                tetris_flag <= 0;
-            end
             
             GEN_WAIT: begin
                 t_curr <= t_gen;
+                lock_timer <= 0;
             end
             
             DROP_LOCKOUT: begin
@@ -606,9 +595,6 @@ module game_control (
                     t_curr.coordinate.y <= t_curr.coordinate.y + 1;
                     last_move_was_rotation <= 0;  // Down movement cancels rotation
                     lock_timer <= 0; // Reset lock timer on successful move
-                end else begin
-                    f_curr <= f_disp;
-                    lock_timer <= lock_timer + 1; // Increment lock timer if stuck
                 end
             end
             
@@ -660,21 +646,7 @@ module game_control (
                     end else begin
                         consecutive_clears <= 0;
                     end
-                    
-                    // Set visual flags
-                    tetris_flag <= (lines_cleared == 4);
-                    spin_t_flag <= is_t_spin;
-                    spin_s_flag <= is_s_spin;
-                    spin_z_flag <= is_z_spin;
-                    spin_j_flag <= is_j_spin;
-                    spin_l_flag <= is_l_spin;
-                    spin_i_flag <= is_i_spin;
-                    is_mini_spin <= is_t_spin_mini;
-                    
-                    // Start message timer if any event occurred
-                    if ((lines_cleared == 4) || is_t_spin || is_s_spin || is_z_spin || is_j_spin || is_l_spin || is_i_spin) begin
-                        msg_timer <= MSG_DURATION;
-                    end
+                
                     
                     // BCD Addition
                     if (lines_cleared != 0) begin

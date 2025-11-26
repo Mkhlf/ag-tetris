@@ -19,15 +19,8 @@ module draw_tetris(
     input  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
     input  tetromino_ctrl  t_curr, // Current piece for ghost rendering
 
-    // flags for spins and tetris
-    input  logic           spin_t_flag,
-    input  logic           spin_s_flag,
-    input  logic           spin_z_flag,
-    input  logic           spin_j_flag,
-    input  logic           spin_l_flag,
-    input  logic           spin_i_flag,
-    input  logic           is_mini_spin,
-    input  logic           tetris_flag,
+    input  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
+    input  tetromino_ctrl  t_curr, // Current piece for ghost rendering
     
     // Sprite Interface
     output logic [3:0]     sprite_addr_x,
@@ -116,113 +109,7 @@ module draw_tetris(
         .pixel_on(score_pixel_on)
     );
     
-    // Message text rendering (for spins and tetris)
-    logic message_pixel_on;
-    logic [7:0] message_chars [0:15];
-    logic [3:0] message_len;
-    
-    // Determine which message to display (priority order)
-    always_comb begin
-        message_len = 0;
-        // Initialize to spaces
-        // for (int i = 0; i < 16; i++) begin
-        //     message_chars[i] = 8'h20; // Space
-        // end
-
-        message_chars[0] = 8'h20; message_chars[1] = 8'h20;
-        message_chars[2] = 8'h20; message_chars[3] = 8'h20;
-        message_chars[4] = 8'h20; message_chars[5] = 8'h20;
-        message_chars[6] = 8'h20; message_chars[7] = 8'h20;
-        message_chars[8] = 8'h20; message_chars[9] = 8'h20;
-        message_chars[10] = 8'h20; message_chars[11] = 8'h20;
-        message_chars[12] = 8'h20; message_chars[13] = 8'h20;
-        message_chars[14] = 8'h20; message_chars[15] = 8'h20;
-        
-        // Priority: TETRIS > T-SPIN > I-SPIN > S-SPIN > Z-SPIN > J-SPIN > L-SPIN
-        if (tetris_flag) begin
-            // "TETRIS"
-            message_chars[0] = 8'h54; // T
-            message_chars[1] = 8'h45; // E
-            message_chars[2] = 8'h54; // T
-            message_chars[3] = 8'h52; // R
-            message_chars[4] = 8'h49; // I
-            message_chars[5] = 8'h53; // S
-            message_len = 6;
-        end else if (spin_t_flag) begin
-            // "T-SPIN" or "T-SPIN MINI"
-            message_chars[0] = 8'h54; // T
-            message_chars[1] = 8'h2D; // -
-            message_chars[2] = 8'h53; // S
-            message_chars[3] = 8'h50; // P
-            message_chars[4] = 8'h49; // I
-            message_chars[5] = 8'h4E; // N
-            if (is_mini_spin) begin
-                message_chars[6] = 8'h20; // Space
-                message_chars[7] = 8'h4D; // M
-                message_chars[8] = 8'h49; // I
-                message_chars[9] = 8'h4E; // N
-                message_chars[10] = 8'h49; // I
-                message_len = 11;
-            end else begin
-                message_len = 6;
-            end
-        end else if (spin_i_flag) begin
-            // "I-SPIN"
-            message_chars[0] = 8'h49; // I
-            message_chars[1] = 8'h2D; // -
-            message_chars[2] = 8'h53; // S
-            message_chars[3] = 8'h50; // P
-            message_chars[4] = 8'h49; // I
-            message_chars[5] = 8'h4E; // N
-            message_len = 6;
-        end else if (spin_s_flag) begin
-            // "S-SPIN"
-            message_chars[0] = 8'h53; // S
-            message_chars[1] = 8'h2D; // -
-            message_chars[2] = 8'h53; // S
-            message_chars[3] = 8'h50; // P
-            message_chars[4] = 8'h49; // I
-            message_chars[5] = 8'h4E; // N
-            message_len = 6;
-        end else if (spin_z_flag) begin
-            // "Z-SPIN"
-            message_chars[0] = 8'h5A; // Z
-            message_chars[1] = 8'h2D; // -
-            message_chars[2] = 8'h53; // S
-            message_chars[3] = 8'h50; // P
-            message_chars[4] = 8'h49; // I
-            message_chars[5] = 8'h4E; // N
-            message_len = 6;
-        end else if (spin_j_flag) begin
-            // "J-SPIN"
-            message_chars[0] = 8'h4A; // J
-            message_chars[1] = 8'h2D; // -
-            message_chars[2] = 8'h53; // S
-            message_chars[3] = 8'h50; // P
-            message_chars[4] = 8'h49; // I
-            message_chars[5] = 8'h4E; // N
-            message_len = 6;
-        end else if (spin_l_flag) begin
-            // "L-SPIN"
-            message_chars[0] = 8'h4C; // L
-            message_chars[1] = 8'h2D; // -
-            message_chars[2] = 8'h53; // S
-            message_chars[3] = 8'h50; // P
-            message_chars[4] = 8'h49; // I
-            message_chars[5] = 8'h4E; // N
-            message_len = 6;
-        end
-    end
-    
-    draw_string_line message_draw (
-        .curr_x(curr_x),
-        .curr_y(curr_y),
-        .pos_x(SIDE_X_START),
-        .pos_y(MESSAGE_Y_START),
-        .str_chars(message_chars),
-        .str_len(message_len),
-        .scale(2'd2), // Scale up event text
-        .pixel_on(message_pixel_on)
+        .pixel_on(score_pixel_on)
     );
     
     // Level text rendering ("Level: X")
@@ -466,39 +353,6 @@ module draw_tetris(
                          vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'hF;
                      end
                  end
-            end
-            
-            // 4.5. Draw Message (Below Score) - Shows TETRIS, T-SPIN, etc.
-            else if (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 200 &&
-                     curr_y >= MESSAGE_Y_START && curr_y < MESSAGE_Y_START + 50) begin
-                if (message_pixel_on && message_len > 0) begin
-                    // Color based on message type
-                    if (tetris_flag) begin
-                        // Gold/Yellow for TETRIS
-                        vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'h0;
-                    end else if (spin_t_flag) begin
-                        // Cyan for T-SPIN
-                        vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'hF;
-                    end else if (spin_i_flag) begin
-                        // Red for I-SPIN
-                        vga_r = 4'hF; vga_g = 4'h0; vga_b = 4'h0;
-                    end else if (spin_s_flag) begin
-                        // Magenta for S-SPIN
-                        vga_r = 4'hF; vga_g = 4'h0; vga_b = 4'hF;
-                    end else if (spin_z_flag) begin
-                        // Orange for Z-SPIN
-                        vga_r = 4'hF; vga_g = 4'hA; vga_b = 4'h0;
-                    end else if (spin_j_flag) begin
-                        // Green for J-SPIN
-                        vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'h0;
-                    end else if (spin_l_flag) begin
-                        // Blue for L-SPIN
-                        vga_r = 4'h0; vga_g = 4'h0; vga_b = 4'hF;
-                    end else begin
-                        // White default
-                        vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'hF;
-                    end
-                end
             end
             
             // 5. Draw Level (Below Message)
