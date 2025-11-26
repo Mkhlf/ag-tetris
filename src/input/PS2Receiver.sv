@@ -72,13 +72,13 @@ always@(negedge(kclkf))begin
 end
 
 always @(posedge flag)begin
-    if (dataprev!=datacur)begin
-        keycode[31:24]<=keycode[23:16];
-        keycode[23:16]<=keycode[15:8];
-        keycode[15:8]<=dataprev;
-        keycode[7:0]<=datacur;
-        dataprev<=datacur;
-    end
+    // if (dataprev!=datacur)begin
+    keycode[31:24]<=keycode[23:16];
+    keycode[23:16]<=keycode[15:8];
+    keycode[15:8]<=dataprev;
+    keycode[7:0]<=datacur;
+    dataprev<=datacur;
+// end
 end
     
 assign keycodeout=keycode;
