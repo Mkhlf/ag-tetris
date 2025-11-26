@@ -2,6 +2,8 @@
 
 module draw_tetris(
     input  wire logic clk,
+    input  wire logic rst,
+    
     input  wire logic [10:0] curr_x,
     input  wire logic [9:0]  curr_y,
     input  wire logic active_area,
@@ -145,85 +147,184 @@ module draw_tetris(
     end
 
     // ======================================================================================
-    // PIPELINE STAGE 1.5: Text Rendering Input Registers
+    // PRE-RENDERED TEXT BITMAPS (Option 1 - Frame-Based Rendering)
     // ======================================================================================
-    logic s1a_active_area;
-    logic [10:0] s1a_curr_x;
-    logic [9:0] s1a_curr_y;
-    
+
+    // Bitmap storage for pre-rendered text (updated once per frame at 60Hz)
+    // Score region: 200 pixels wide × 60 pixels tall
+    // Level region: 200 pixels wide × 20 pixels tall
+    logic [199:0] score_text_bitmap [0:59];
+    logic [199:0] level_text_bitmap [0:19];
+
+    // Frame boundary detection
+    logic vsync_prev;
+    logic frame_start;
+
     always_ff @(posedge clk) begin
-        s1a_active_area <= s1_active_area;
-        s1a_curr_x <= s1_curr_x;
-        s1a_curr_y <= s1_curr_y;
+        vsync_prev <= vsync_in;
+        frame_start <= vsync_in && !vsync_prev; // Rising edge of vsync
     end
 
+    // Text rendering state machine (runs during vblank)
+    typedef enum logic [2:0] {
+        TR_IDLE,
+        TR_SCORE,
+        TR_LEVEL,
+        TR_DONE
+    } text_render_state_t;
 
-    // Helper signals for Stage 2 logic
-    logic score_pixel_on;
-    logic level_text_pixel_on;
+    text_render_state_t tr_state;
+    logic [7:0] tr_y_counter;
+    logic [7:0] tr_x_counter;
 
-    // Score Number
-    draw_number score_draw (
-        .curr_x(s1a_curr_x),
-        .curr_y(s1a_curr_y),
-        .pos_x(SIDE_X_START),
-        .pos_y(SCORE_Y_START + 40),
+    // Intermediate signals for text rendering
+    logic [10:0] render_curr_x;
+    logic [9:0] render_curr_y;
+    logic render_score_pixel;
+    logic render_level_pixel;
+
+    // Text module instantiations (for rendering - NOT for display)
+    draw_number score_renderer (
+        .curr_x(render_curr_x),
+        .curr_y(render_curr_y),
+        .pos_x(11'd0),  // Relative to bitmap origin
+        .pos_y(10'd0),
         .number(score),
-        .pixel_on(score_pixel_on)  // ← Outputs this signal
+        .pixel_on(render_score_pixel)
     );
 
-    // Level Text
-    logic [7:0] level_text_chars [0:15];
-    logic [3:0] level_text_len;
+    logic [7:0] render_level_chars [0:15];
+    logic [3:0] render_level_len;
 
     always_comb begin
-        level_text_chars[0] = 8'h4C; // L
-        level_text_chars[1] = 8'h45; // E
-        level_text_chars[2] = 8'h56; // V
-        level_text_chars[3] = 8'h45; // E
-        level_text_chars[4] = 8'h4C; // L
-        level_text_chars[5] = 8'h3A; // :
-        level_text_chars[6] = 8'h20; // Space
-        
-        level_text_chars[8] = 8'h20; level_text_chars[9] = 8'h20;
-        level_text_chars[10] = 8'h20; level_text_chars[11] = 8'h20;
-        level_text_chars[12] = 8'h20; level_text_chars[13] = 8'h20;
-        level_text_chars[14] = 8'h20; level_text_chars[15] = 8'h20;
+        render_level_chars[0] = 8'h4C; // L
+        render_level_chars[1] = 8'h45; // E
+        render_level_chars[2] = 8'h56; // V
+        render_level_chars[3] = 8'h45; // E
+        render_level_chars[4] = 8'h4C; // L
+        render_level_chars[5] = 8'h3A; // :
+        render_level_chars[6] = 8'h20; // Space
         
         if (current_level < 10) begin
-            level_text_chars[7] = 8'h30 + current_level;
-            level_text_len = 8;
+            render_level_chars[7] = 8'h30 + current_level;
+            render_level_len = 8;
         end else begin
-            level_text_chars[7] = 8'h31;
-            level_text_chars[8] = 8'h30 + (current_level - 10);
-            level_text_len = 9;
+            render_level_chars[7] = 8'h31;
+            render_level_chars[8] = 8'h30 + (current_level - 10);
+            render_level_len = 9;
+        end
+        
+        // Fill rest with spaces
+        for (int i = render_level_len; i < 16; i++) begin
+            render_level_chars[i] = 8'h20;
         end
     end
 
-
-    draw_string_line level_text_draw (
-        .curr_x(s1a_curr_x),
-        .curr_y(s1a_curr_y),
-        .pos_x(SIDE_X_START),
-        .pos_y(LEVEL_Y_START),
-        .str_chars(level_text_chars),
-        .str_len(level_text_len),
+    draw_string_line level_renderer (
+        .curr_x(render_curr_x),
+        .curr_y(render_curr_y),
+        .pos_x(11'd0),
+        .pos_y(10'd0),
+        .str_chars(render_level_chars),
+        .str_len(render_level_len),
         .scale(2'd2),
-        .pixel_on(level_text_pixel_on)  // ← Outputs this signal
+        .pixel_on(render_level_pixel)
     );
 
-    // 
-
+    // State machine to render text to bitmaps once per frame
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            tr_state <= TR_IDLE;
+            tr_y_counter <= 0;
+            tr_x_counter <= 0;
+        end else begin
+            case (tr_state)
+                TR_IDLE: begin
+                    if (frame_start) begin
+                        tr_state <= TR_SCORE;
+                        tr_y_counter <= 0;
+                        tr_x_counter <= 0;
+                    end
+                end
+                
+                TR_SCORE: begin
+                    // Render one row per clock cycle
+                    render_curr_x <= tr_x_counter;
+                    render_curr_y <= tr_y_counter;
+                    
+                    // Store rendered pixel
+                    score_text_bitmap[tr_y_counter][tr_x_counter] <= render_score_pixel;
+                    
+                    // Advance to next pixel
+                    if (tr_x_counter < 199) begin
+                        tr_x_counter <= tr_x_counter + 1;
+                    end else begin
+                        tr_x_counter <= 0;
+                        if (tr_y_counter < 59) begin
+                            tr_y_counter <= tr_y_counter + 1;
+                        end else begin
+                            // Done with score, move to level
+                            tr_state <= TR_LEVEL;
+                            tr_y_counter <= 0;
+                            tr_x_counter <= 0;
+                        end
+                    end
+                end
+                
+                TR_LEVEL: begin
+                    render_curr_x <= tr_x_counter;
+                    render_curr_y <= tr_y_counter;
+                    
+                    level_text_bitmap[tr_y_counter][tr_x_counter] <= render_level_pixel;
+                    
+                    if (tr_x_counter < 199) begin
+                        tr_x_counter <= tr_x_counter + 1;
+                    end else begin
+                        tr_x_counter <= 0;
+                        if (tr_y_counter < 19) begin
+                            tr_y_counter <= tr_y_counter + 1;
+                        end else begin
+                            tr_state <= TR_DONE;
+                        end
+                    end
+                end
+                
+                TR_DONE: begin
+                    tr_state <= TR_IDLE; // Wait for next frame
+                end
+            endcase
+        end
+    end
 
     // ======================================================================================
-    // PIPELINE STAGE 1.75: Text Rendering Output Registers
+    // FAST TEXT LOOKUP (replaces Stage 1.5, 1.75 entirely)
     // ======================================================================================
+
+    // Fast bitmap lookup (just 1 cycle - no 32-level logic!)
     logic s1b_score_pixel_on;
     logic s1b_level_text_pixel_on;
 
     always_ff @(posedge clk) begin
-        s1b_score_pixel_on <= score_pixel_on;
-        s1b_level_text_pixel_on <= level_text_pixel_on;
+        s1b_score_pixel_on <= 0;
+        s1b_level_text_pixel_on <= 0;
+        
+        // Score lookup
+        if (s1_is_score && s1_curr_y >= SCORE_Y_START + 40 && s1_curr_y < SCORE_Y_START + 100) begin
+            automatic int bmp_y = s1_curr_y - (SCORE_Y_START + 40);
+            automatic int bmp_x = s1_curr_x - SIDE_X_START;
+            if (bmp_x >= 0 && bmp_x < 200 && bmp_y >= 0 && bmp_y < 60) begin
+                s1b_score_pixel_on <= score_text_bitmap[bmp_y][bmp_x];
+            end
+        end
+        
+        // Level lookup
+        if (s1_is_level && s1_curr_y >= LEVEL_Y_START && s1_curr_y < LEVEL_Y_START + 20) begin
+            automatic int bmp_y = s1_curr_y - LEVEL_Y_START;
+            automatic int bmp_x = s1_curr_x - SIDE_X_START;
+            if (bmp_x >= 0 && bmp_x < 200 && bmp_y >= 0 && bmp_y < 20) begin
+                s1b_level_text_pixel_on <= level_text_bitmap[bmp_y][bmp_x];
+            end
+        end
     end
 
     // ======================================================================================

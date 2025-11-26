@@ -150,61 +150,38 @@ module game_top(
     
     // ========================================================================
     // Decode Raw Levels (Held State) - Now in game_clk domain
+    // WITH WATCHDOG INTEGRATED (single driver!)
     // ========================================================================
     logic raw_left_kb, raw_right_kb, raw_down_kb, raw_rotate_cw_kb, raw_rotate_ccw_kb, raw_drop_kb, raw_hold_kb;
-    
-    always_ff @(posedge game_clk) begin
-        if (rst) begin
-            raw_left_kb <= 0; raw_right_kb <= 0; raw_down_kb <= 0;
-            raw_rotate_cw_kb <= 0; raw_rotate_ccw_kb <= 0; raw_drop_kb <= 0; raw_hold_kb <= 0;
-        end else if (key_event_pulse) begin
-            // Use synchronized values - they're stable when pulse fires
-            case (scan_code_sync2)
-                `LEFT_ARROW_C:  raw_left_kb   <= make_break_sync2;
-                `RIGHT_ARROW_C: raw_right_kb  <= make_break_sync2;
-                `DOWN_ARROW_C:  raw_down_kb   <= make_break_sync2;
-                `UP_ARROW_C:    raw_rotate_cw_kb <= make_break_sync2;
-                `X_KEY_C:       raw_rotate_cw_kb <= make_break_sync2;
-                `Z_KEY_C:       raw_rotate_ccw_kb <= make_break_sync2;
-                `SPACE_C:       raw_drop_kb   <= make_break_sync2;
-                `LSHIFT_C:      raw_hold_kb   <= make_break_sync2;
-                default: ; // No change for other keys
-            endcase
-        end
-    end
 
-
-// ========================================================================
-// Keyboard Watchdog - Unstick keys held for absurdly long time
-// ========================================================================
-    logic [19:0] watchdog_counter;  // 20 bits = ~1M cycles = ~40ms at 25MHz
+    // Watchdog counter (declared here, used in same block)
+    logic [19:0] watchdog_counter;
     logic watchdog_timeout;
 
     always_ff @(posedge game_clk) begin
         if (rst) begin
+            raw_left_kb <= 0; raw_right_kb <= 0; raw_down_kb <= 0;
+            raw_rotate_cw_kb <= 0; raw_rotate_ccw_kb <= 0; raw_drop_kb <= 0; raw_hold_kb <= 0;
             watchdog_counter <= 0;
             watchdog_timeout <= 0;
         end else begin
-            // If ANY keyboard key is held
+            // === WATCHDOG LOGIC ===
             if (raw_left_kb || raw_right_kb || raw_down_kb || 
                 raw_rotate_cw_kb || raw_rotate_ccw_kb || raw_drop_kb || raw_hold_kb) begin
-                
-                // Increment watchdog (but only if a key is held)
-                if (watchdog_counter < 20'd750000) begin  // 30 seconds at 25MHz
+                if (watchdog_counter < 20'd750000) begin
                     watchdog_counter <= watchdog_counter + 1;
                     watchdog_timeout <= 0;
                 end else begin
-                    // Timeout! Key has been held for 30+ seconds - must be stuck
                     watchdog_timeout <= 1;
                 end
             end else begin
-                // No keys held - reset watchdog
                 watchdog_counter <= 0;
                 watchdog_timeout <= 0;
             end
             
-            // If watchdog times out, clear ALL keyboard states
+            // === KEYBOARD DECODE (only driver of raw_*_kb signals) ===
             if (watchdog_timeout) begin
+                // Watchdog fired - clear all keys
                 raw_left_kb <= 0;
                 raw_right_kb <= 0;
                 raw_down_kb <= 0;
@@ -212,6 +189,19 @@ module game_top(
                 raw_rotate_ccw_kb <= 0;
                 raw_drop_kb <= 0;
                 raw_hold_kb <= 0;
+            end else if (key_event_pulse) begin
+                // Normal keyboard events
+                case (scan_code_sync2)
+                    `LEFT_ARROW_C:  raw_left_kb   <= make_break_sync2;
+                    `RIGHT_ARROW_C: raw_right_kb  <= make_break_sync2;
+                    `DOWN_ARROW_C:  raw_down_kb   <= make_break_sync2;
+                    `UP_ARROW_C:    raw_rotate_cw_kb <= make_break_sync2;
+                    `X_KEY_C:       raw_rotate_cw_kb <= make_break_sync2;
+                    `Z_KEY_C:       raw_rotate_ccw_kb <= make_break_sync2;
+                    `SPACE_C:       raw_drop_kb   <= make_break_sync2;
+                    `LSHIFT_C:      raw_hold_kb   <= make_break_sync2;
+                    default: ; // No change for other keys
+                endcase
             end
         end
     end
@@ -398,6 +388,7 @@ module game_top(
 
     draw_tetris draw_inst (
     .clk(pix_clk),
+    .rst(rst),
     .curr_x(curr_x_raw),
     .curr_y(curr_y_raw),
     .active_area(active_area_raw),
