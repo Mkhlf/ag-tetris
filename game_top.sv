@@ -151,19 +151,21 @@ module game_top(
     // ========================================================================
     // Decode Raw Levels (Held State) - Now in game_clk domain
     // ========================================================================
-    logic raw_left_kb, raw_right_kb, raw_down_kb, raw_rotate_kb, raw_drop_kb, raw_hold_kb;
+    logic raw_left_kb, raw_right_kb, raw_down_kb, raw_rotate_cw_kb, raw_rotate_ccw_kb, raw_drop_kb, raw_hold_kb;
     
     always_ff @(posedge game_clk) begin
         if (rst) begin
             raw_left_kb <= 0; raw_right_kb <= 0; raw_down_kb <= 0;
-            raw_rotate_kb <= 0; raw_drop_kb <= 0; raw_hold_kb <= 0;
+            raw_rotate_cw_kb <= 0; raw_rotate_ccw_kb <= 0; raw_drop_kb <= 0; raw_hold_kb <= 0;
         end else if (key_event_pulse) begin
             // Use synchronized values - they're stable when pulse fires
             case (scan_code_sync2)
                 `LEFT_ARROW_C:  raw_left_kb   <= make_break_sync2;
                 `RIGHT_ARROW_C: raw_right_kb  <= make_break_sync2;
                 `DOWN_ARROW_C:  raw_down_kb   <= make_break_sync2;
-                `UP_ARROW_C:    raw_rotate_kb <= make_break_sync2;
+                `UP_ARROW_C:    raw_rotate_cw_kb <= make_break_sync2;
+                `X_KEY_C:       raw_rotate_cw_kb <= make_break_sync2;
+                `Z_KEY_C:       raw_rotate_ccw_kb <= make_break_sync2;
                 `SPACE_C:       raw_drop_kb   <= make_break_sync2;
                 `LSHIFT_C:      raw_hold_kb   <= make_break_sync2;
                 default: ; // No change for other keys
@@ -195,16 +197,17 @@ module game_top(
     );
 
     // Combine with Buttons (Active High)
-    logic raw_left, raw_right, raw_down, raw_rotate, raw_drop, raw_hold;
+    logic raw_left, raw_right, raw_down, raw_rotate_cw, raw_rotate_ccw, raw_drop, raw_hold;
     assign raw_left   = raw_left_kb   | btn_l_db;
     assign raw_right  = raw_right_kb  | btn_r_db;
     assign raw_down   = raw_down_kb   | btn_d_db;
-    assign raw_rotate = raw_rotate_kb | btn_u_db;
+    assign raw_rotate_cw = raw_rotate_cw_kb | btn_u_db;
+    assign raw_rotate_ccw = raw_rotate_ccw_kb;
     assign raw_drop   = raw_drop_kb   | btn_c_db;
     assign raw_hold   = raw_hold_kb;  // Hold only via keyboard (no button)
 
     // Input Manager (DAS & One-Shot)
-    logic key_left, key_right, key_down, key_rotate, key_drop, key_hold;
+    logic key_left, key_right, key_down, key_rotate_cw, key_rotate_ccw, key_drop, key_hold;
     
     input_manager input_mgr (
         .clk(game_clk),
@@ -213,13 +216,15 @@ module game_top(
         .raw_left(raw_left),
         .raw_right(raw_right),
         .raw_down(raw_down),
-        .raw_rotate(raw_rotate),
+        .raw_rotate_cw(raw_rotate_cw),
+        .raw_rotate_ccw(raw_rotate_ccw),
         .raw_drop(raw_drop),
         .raw_hold(raw_hold),
         .cmd_left(key_left),
         .cmd_right(key_right),
         .cmd_down(key_down),
-        .cmd_rotate(key_rotate),
+        .cmd_rotate_cw(key_rotate_cw),
+        .cmd_rotate_ccw(key_rotate_ccw),
         .cmd_drop(key_drop),
         .cmd_hold(key_hold)
     );
@@ -242,7 +247,8 @@ module game_top(
         .key_left(key_left),
         .key_right(key_right),
         .key_down(key_down),
-        .key_rotate(key_rotate),
+        .key_rotate_cw(key_rotate_cw),
+        .key_rotate_ccw(key_rotate_ccw),
         .key_drop(key_drop),
         .key_hold(key_hold),
         .key_drop_held(raw_drop), // Connect raw state for lockout
@@ -330,7 +336,8 @@ module game_top(
         .key_left(raw_left),
         .key_right(raw_right),
         .key_down(raw_down),
-        .key_rotate(raw_rotate),
+        .key_rotate_cw(raw_rotate_cw),
+        .key_rotate_ccw(raw_rotate_ccw),
         .key_drop(raw_drop),
         .key_hold(raw_hold),
         .SEG(SEG),

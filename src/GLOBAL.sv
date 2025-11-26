@@ -42,6 +42,13 @@ typedef struct packed {
           logic [0:3][0:3][0:3] data;
         } tetromino_t;
 
+// KICK OFF
+// Add this typedef to GLOBAL.sv
+typedef struct packed {
+    logic signed [2:0] x;
+    logic signed [2:0] y;
+} kick_offset_t;
+
 // COLOR TYPE (color_mapper for more detail)
 `define C_BLACK     4'b0000
 `define C_FREE1     4'b0001

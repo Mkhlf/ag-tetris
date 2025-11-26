@@ -25,7 +25,8 @@ module seg7_key_display(
     input  logic        key_left,
     input  logic        key_right,
     input  logic        key_down,
-    input  logic        key_rotate,
+    input  logic        key_rotate_cw,
+    input  logic        key_rotate_ccw,
     input  logic        key_drop,
     input  logic        key_hold,
     
@@ -127,15 +128,25 @@ module seg7_key_display(
             seg_data[1] = 7'b1111001; // 1
             seg_data[0] = 7'b0100100; // 2
         end
-        else if (key_rotate) begin
-            // "rotE" for rotate (up arrow)
+        else if (key_rotate_cw) begin
+            // "rot r" for rotate CW
             seg_data[7] = SEG_r;
             seg_data[6] = SEG_o;
             seg_data[5] = SEG_t;
-            seg_data[4] = 7'b0000110; // E
-            // Scan code 0x75
+            seg_data[4] = SEG_r;
+            // Scan code (generic or specific)
             seg_data[1] = 7'b1111000; // 7
             seg_data[0] = 7'b0010010; // 5
+        end
+        else if (key_rotate_ccw) begin
+            // "rot L" for rotate CCW
+            seg_data[7] = SEG_r;
+            seg_data[6] = SEG_o;
+            seg_data[5] = SEG_t;
+            seg_data[4] = SEG_L;
+            // Scan code
+            seg_data[1] = 7'b1111001; // 1
+            seg_data[0] = 7'b0001000; // A (1A for Z)
         end
         else if (key_left) begin
             // "LEFt" for left

@@ -9,7 +9,8 @@ module input_manager (
     input  logic raw_left,
     input  logic raw_right,
     input  logic raw_down,
-    input  logic raw_rotate,
+    input  logic raw_rotate_cw,
+    input  logic raw_rotate_ccw,
     input  logic raw_drop,
     input  logic raw_hold,
     
@@ -17,7 +18,8 @@ module input_manager (
     output logic cmd_left,   // Pulse (DAS)
     output logic cmd_right,  // Pulse (DAS)
     output logic cmd_down,   // Pulse (DAS or continuous?)
-    output logic cmd_rotate, // Pulse (One-shot)
+    output logic cmd_rotate_cw, // Pulse (One-shot)
+    output logic cmd_rotate_ccw, // Pulse (One-shot)
     output logic cmd_drop,   // Pulse (One-shot)
     output logic cmd_hold    // Pulse (One-shot)
   );
@@ -29,21 +31,22 @@ module input_manager (
   
   // Timers and edge detectors
   logic [5:0] timer_left, timer_right, timer_down;
-  logic prev_left, prev_right, prev_down, prev_rotate, prev_drop, prev_hold;
+  logic prev_left, prev_right, prev_down, prev_rotate_cw, prev_rotate_ccw, prev_drop, prev_hold;
   
   always_ff @(posedge clk) begin
     if (rst) begin
         cmd_left <= 0; cmd_right <= 0; cmd_down <= 0;
-        cmd_rotate <= 0; cmd_drop <= 0; cmd_hold <= 0;
+        cmd_rotate_cw <= 0; cmd_rotate_ccw <= 0; cmd_drop <= 0; cmd_hold <= 0;
         timer_left <= 0; timer_right <= 0; timer_down <= 0;
         prev_left <= 0; prev_right <= 0; prev_down <= 0;
-        prev_rotate <= 0; prev_drop <= 0; prev_hold <= 0;
+        prev_rotate_cw <= 0; prev_rotate_ccw <= 0; prev_drop <= 0; prev_hold <= 0;
     end else begin
         // Default low
         cmd_left <= 0;
         cmd_right <= 0;
         cmd_down <= 0;
-        cmd_rotate <= 0;
+        cmd_rotate_cw <= 0;
+        cmd_rotate_ccw <= 0;
         cmd_drop <= 0;
         cmd_hold <= 0;
         
@@ -114,11 +117,17 @@ module input_manager (
         end
         prev_down <= raw_down;
         
-        // --- ROTATE (One Shot) ---
-        if (raw_rotate && !prev_rotate) begin
-            cmd_rotate <= 1;
+        // --- ROTATE CW (One Shot) ---
+        if (raw_rotate_cw && !prev_rotate_cw) begin
+            cmd_rotate_cw <= 1;
         end
-        prev_rotate <= raw_rotate;
+        prev_rotate_cw <= raw_rotate_cw;
+
+        // --- ROTATE CCW (One Shot) ---
+        if (raw_rotate_ccw && !prev_rotate_ccw) begin
+            cmd_rotate_ccw <= 1;
+        end
+        prev_rotate_ccw <= raw_rotate_ccw;
         
         // --- DROP (One Shot) ---
         if (raw_drop && !prev_drop) begin
