@@ -3,14 +3,14 @@
 module game_control (
     input   logic           clk,
     input   logic           rst,
-    input   logic           tick_game, // 60Hz tick
+    input   logic           tick_game,
     
     // Inputs (Single Pulse)
     input   logic           key_left,
     input   logic           key_right,
     input   logic           key_down,
-    input   logic           key_rotate_cw,    // Clockwise rotation
-    input   logic           key_rotate_ccw,   // Counter-clockwise rotation
+    input   logic           key_rotate_cw,
+    input   logic           key_rotate_ccw,
     input   logic           key_drop,
     input   logic           key_hold,
     input   logic           key_drop_held,
@@ -23,7 +23,17 @@ module game_control (
     output  logic           hold_used_out,
     output  logic [3:0]     current_level_out,
     output  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
-    output  tetromino_ctrl  t_curr_out
+    output  tetromino_ctrl  t_curr_out,
+    
+    // NEW: Spin detection outputs for visual effects
+    output  logic           spin_t_flag,
+    output  logic           spin_s_flag,
+    output  logic           spin_z_flag,
+    output  logic           spin_j_flag,
+    output  logic           spin_l_flag,
+    output  logic           spin_i_flag,
+    output  logic           is_mini_spin,     // Mini T-spin flag
+    output  logic           tetris_flag       // 4-line clear flag
   );
 
   // States
@@ -67,9 +77,20 @@ module game_control (
   logic [2:0] lines_cleared;
   
   // Rotation & Kick System
-  logic [2:0] kick_attempt;     // Current kick test (0-4)
-  logic rotate_direction;        // 1 = CW, 0 = CCW
-  logic [1:0] rotation_from;     // Source rotation state (for kick table lookup)
+  logic [2:0] kick_attempt;
+  logic rotate_direction;
+  logic [1:0] rotation_from;
+  logic last_move_was_rotation;  // NEW: Track if last lock was from rotation
+  logic [2:0] kick_used;         // NEW: Which kick succeeded (0-4)
+  
+  // Spin Detection
+  logic is_t_spin;
+  logic is_t_spin_mini;
+  logic is_s_spin;
+  logic is_z_spin;
+  logic is_j_spin;
+  logic is_l_spin;
+  logic is_i_spin;
   
   // Level & Speed Logic
   logic [3:0] current_level;
@@ -79,110 +100,103 @@ module game_control (
       current_level = total_lines_cleared / 10;
       if (current_level > 15) current_level = 15;
       
-      case (current_level)
-          0: drop_speed_frames = 48;
-          1: drop_speed_frames = 43;
-          2: drop_speed_frames = 38;
-          3: drop_speed_frames = 33;
-          4: drop_speed_frames = 28;
-          5: drop_speed_frames = 23;
-          6: drop_speed_frames = 18;
-          7: drop_speed_frames = 13;
-          8: drop_speed_frames = 8;
-          9: drop_speed_frames = 6;
-          10: drop_speed_frames = 5;
-          11: drop_speed_frames = 5;
-          12: drop_speed_frames = 5;
-          13: drop_speed_frames = 4;
-          14: drop_speed_frames = 4;
-          15: drop_speed_frames = 3;
-          default: drop_speed_frames = 3;
-      endcase
+    case (current_level)
+        0:  drop_speed_frames = 40;   
+        1:  drop_speed_frames = 37;   
+        2:  drop_speed_frames = 34;   
+        3:  drop_speed_frames = 30;   
+        4:  drop_speed_frames = 26;   
+        5:  drop_speed_frames = 21;   
+        6:  drop_speed_frames = 15;   
+        7:  drop_speed_frames = 12;   
+        8:  drop_speed_frames = 8;
+        9:  drop_speed_frames = 6;
+        10: drop_speed_frames = 5;
+        11: drop_speed_frames = 5;
+        12: drop_speed_frames = 5;
+        13: drop_speed_frames = 4;
+        14: drop_speed_frames = 3;
+        15: drop_speed_frames = 2;    
+        default: drop_speed_frames = 2; // Impossible mode!
+    endcase
   end
   
   // =================================================================
   // SRS KICK TABLES
   // =================================================================
-  // Tables are indexed by [rotation_state][kick_test]
-  // rotation_state: 0=0→R, 1=R→2, 2=2→L, 3=L→0 for CW
-  //                 0=0→L, 1=L→2, 2=2→R, 3=R→0 for CCW
-  // =================================================================
   
-  // JLSTZ Pieces - Clockwise Kick Tables
-  const kick_offset_t JLSTZ_KICKS_CW[4][5] = '{
-      // 0 → R (0° → 90° CW)
+  localparam kick_offset_t JLSTZ_KICKS_CW[4][5] = '{
       '{'{3'sd0, 3'sd0}, '{-3'sd1, 3'sd0}, '{-3'sd1, 3'sd1}, '{3'sd0, -3'sd2}, '{-3'sd1, -3'sd2}},
-      // R → 2 (90° → 180° CW)
       '{'{3'sd0, 3'sd0}, '{3'sd1, 3'sd0}, '{3'sd1, -3'sd1}, '{3'sd0, 3'sd2}, '{3'sd1, 3'sd2}},
-      // 2 → L (180° → 270° CW)
       '{'{3'sd0, 3'sd0}, '{3'sd1, 3'sd0}, '{3'sd1, 3'sd1}, '{3'sd0, -3'sd2}, '{3'sd1, -3'sd2}},
-      // L → 0 (270° → 0° CW)
       '{'{3'sd0, 3'sd0}, '{-3'sd1, 3'sd0}, '{-3'sd1, -3'sd1}, '{3'sd0, 3'sd2}, '{-3'sd1, 3'sd2}}
   };
   
-  // JLSTZ Pieces - Counter-Clockwise Kick Tables
-  const kick_offset_t JLSTZ_KICKS_CCW[4][5] = '{
-      // 0 → L (0° → 270° CCW)
+  localparam kick_offset_t JLSTZ_KICKS_CCW[4][5] = '{
       '{'{3'sd0, 3'sd0}, '{3'sd1, 3'sd0}, '{3'sd1, 3'sd1}, '{3'sd0, -3'sd2}, '{3'sd1, -3'sd2}},
-      // L → 2 (270° → 180° CCW)
       '{'{3'sd0, 3'sd0}, '{-3'sd1, 3'sd0}, '{-3'sd1, -3'sd1}, '{3'sd0, 3'sd2}, '{-3'sd1, 3'sd2}},
-      // 2 → R (180° → 90° CCW)
       '{'{3'sd0, 3'sd0}, '{-3'sd1, 3'sd0}, '{-3'sd1, 3'sd1}, '{3'sd0, -3'sd2}, '{-3'sd1, -3'sd2}},
-      // R → 0 (90° → 0° CCW)
       '{'{3'sd0, 3'sd0}, '{3'sd1, 3'sd0}, '{3'sd1, -3'sd1}, '{3'sd0, 3'sd2}, '{3'sd1, 3'sd2}}
   };
   
-  // I Piece - Clockwise Kick Tables
-  const kick_offset_t I_KICKS_CW[4][5] = '{
-      // 0 → R
+  localparam kick_offset_t I_KICKS_CW[4][5] = '{
       '{'{3'sd0, 3'sd0}, '{-3'sd2, 3'sd0}, '{3'sd1, 3'sd0}, '{-3'sd2, -3'sd1}, '{3'sd1, 3'sd2}},
-      // R → 2
       '{'{3'sd0, 3'sd0}, '{-3'sd1, 3'sd0}, '{3'sd2, 3'sd0}, '{-3'sd1, 3'sd2}, '{3'sd2, -3'sd1}},
-      // 2 → L
       '{'{3'sd0, 3'sd0}, '{3'sd2, 3'sd0}, '{-3'sd1, 3'sd0}, '{3'sd2, 3'sd1}, '{-3'sd1, -3'sd2}},
-      // L → 0
       '{'{3'sd0, 3'sd0}, '{3'sd1, 3'sd0}, '{-3'sd2, 3'sd0}, '{3'sd1, -3'sd2}, '{-3'sd2, 3'sd1}}
   };
   
-  // I Piece - Counter-Clockwise Kick Tables
-  const kick_offset_t I_KICKS_CCW[4][5] = '{
-      // 0 → L
+  localparam kick_offset_t I_KICKS_CCW[4][5] = '{
       '{'{3'sd0, 3'sd0}, '{-3'sd1, 3'sd0}, '{3'sd2, 3'sd0}, '{-3'sd1, 3'sd2}, '{3'sd2, -3'sd1}},
-      // L → 2
       '{'{3'sd0, 3'sd0}, '{3'sd2, 3'sd0}, '{-3'sd1, 3'sd0}, '{3'sd2, 3'sd1}, '{-3'sd1, -3'sd2}},
-      // 2 → R
       '{'{3'sd0, 3'sd0}, '{3'sd1, 3'sd0}, '{-3'sd2, 3'sd0}, '{3'sd1, -3'sd2}, '{-3'sd2, 3'sd1}},
-      // R → 0
       '{'{3'sd0, 3'sd0}, '{-3'sd2, 3'sd0}, '{3'sd1, 3'sd0}, '{-3'sd2, -3'sd1}, '{3'sd1, 3'sd2}}
   };
   
-  // Get current kick offset based on piece type and rotation
   kick_offset_t current_kick;
   always_comb begin
-      // Default to no kick
       current_kick = '{3'sd0, 3'sd0};
       
       if (ps == ROTATE) begin
           case (t_curr.idx.data)
-              `TETROMINO_I: begin
-                  if (rotate_direction) // Clockwise
+              `TETROMINO_I_IDX: begin
+                  if (rotate_direction)
                       current_kick = I_KICKS_CW[rotation_from][kick_attempt];
-                  else // Counter-clockwise
+                  else
                       current_kick = I_KICKS_CCW[rotation_from][kick_attempt];
               end
-              `TETROMINO_O: begin
-                  // O piece doesn't need kicks
+              `TETROMINO_O_IDX: begin
                   current_kick = '{3'sd0, 3'sd0};
               end
-              default: begin // J, L, S, T, Z
-                  if (rotate_direction) // Clockwise
+              default: begin
+                  if (rotate_direction)
                       current_kick = JLSTZ_KICKS_CW[rotation_from][kick_attempt];
-                  else // Counter-clockwise
+                  else
                       current_kick = JLSTZ_KICKS_CCW[rotation_from][kick_attempt];
               end
           endcase
       end
   end
+  
+  // =================================================================
+  // SPIN DETECTION LOGIC
+  // =================================================================
+  // Checks if piece is surrounded by blocks/walls (3-corner rule for T-spins)
+  // =================================================================
+  
+  spin_detector spin_detect (
+      .t_ctrl(t_curr),
+      .f(f_curr),
+      .last_move_was_rotation(last_move_was_rotation),
+      .kick_used(kick_used),
+      .is_t_spin(is_t_spin),
+      .is_t_spin_mini(is_t_spin_mini),
+      .is_s_spin(is_s_spin),
+      .is_z_spin(is_z_spin),
+      .is_j_spin(is_j_spin),
+      .is_l_spin(is_l_spin),
+      .is_i_spin(is_i_spin)
+  );
   
   // Timers
   integer drop_timer;
@@ -196,11 +210,10 @@ module game_control (
     .t_next_out(t_gen_next)
   );
   
-  // Rotation Module (now bidirectional)
   tetromino_ctrl t_rotated;
   rotate_tetromino rot (
     .clk(clk),
-    .enable(ps == ROTATE && kick_attempt == 0), // Only rotate on first kick attempt
+    .enable(ps == ROTATE && kick_attempt == 0),
     .clockwise(rotate_direction),
     .t_in(t_curr),
     .t_out(t_rotated),
@@ -252,7 +265,6 @@ module game_control (
         DOWN: t_check.coordinate.y = t_curr.coordinate.y + 1;
         HARD_DROP: t_check.coordinate.y = t_curr.coordinate.y + 1;
         ROTATE: begin
-            // Use rotated piece with current kick offset
             t_check = t_rotated;
             t_check.coordinate.x = t_rotated.coordinate.x + current_kick.x;
             t_check.coordinate.y = t_rotated.coordinate.y + current_kick.y;
@@ -292,16 +304,12 @@ module game_control (
         
         ROTATE: begin
             if (kick_attempt == 0 && !rotate_done) begin
-                // Wait for rotation module to complete
                 ns = ROTATE;
             end else if (valid) begin
-                // Kick succeeded!
                 ns = IDLE;
             end else if (kick_attempt < 4) begin
-                // Try next kick
                 ns = ROTATE;
             end else begin
-                // All kicks failed, rotation fails
                 ns = IDLE;
             end
         end
@@ -343,25 +351,30 @@ module game_control (
     endcase
   end
   
-  // Scoring computation (same as before)
+  // =================================================================
+  // SCORING WITH SPINS
+  // =================================================================
   logic [11:0] base_score_raw;
   logic [4:0]  level_mult;
   logic [15:0] base_total;
   logic [9:0]  streak_bonus;
+  logic [15:0] spin_bonus;
   logic [15:0] points_to_add;
   
   always_comb begin
+      // Base line clear scores (NES style)
       case (lines_cleared)
           3'd1: base_score_raw = 12'd40;
           3'd2: base_score_raw = 12'd100;
           3'd3: base_score_raw = 12'd300;
-          3'd4: base_score_raw = 12'd1200;
+          3'd4: base_score_raw = 12'd1200;  // Tetris!
           default: base_score_raw = 12'd0;
       endcase
       
       level_mult = (current_level < 15) ? (current_level + 1) : 5'd16;
       base_total = base_score_raw * level_mult;
       
+      // Streak bonus
       if (lines_cleared != 0 && consecutive_clears > 0) begin
           if (consecutive_clears >= 5)
               streak_bonus = 10'd500;
@@ -371,28 +384,79 @@ module game_control (
           streak_bonus = 10'd0;
       end
       
-      points_to_add = base_total + streak_bonus;
+      // =================================================================
+      // SPIN BONUSES (Modern Tetris Guidelines)
+      // =================================================================
+      spin_bonus = 16'd0;
+      
+      // T-Spin scoring (most valuable)
+      if (is_t_spin && !is_t_spin_mini) begin
+          case (lines_cleared)
+              3'd0: spin_bonus = 16'd400 * level_mult;   // T-Spin no lines
+              3'd1: spin_bonus = 16'd800 * level_mult;   // T-Spin Single
+              3'd2: spin_bonus = 16'd1200 * level_mult;  // T-Spin Double
+              3'd3: spin_bonus = 16'd1600 * level_mult;  // T-Spin Triple
+              default: spin_bonus = 16'd0;
+          endcase
+      end 
+      // T-Spin Mini (less valuable)
+      else if (is_t_spin_mini) begin
+          case (lines_cleared)
+              3'd0: spin_bonus = 16'd100 * level_mult;   // Mini T-Spin no lines
+              3'd1: spin_bonus = 16'd200 * level_mult;   // Mini T-Spin Single
+              default: spin_bonus = 16'd0;
+          endcase
+      end
+      // S/Z-Spin scoring (moderate bonus)
+      else if (is_s_spin || is_z_spin) begin
+          case (lines_cleared)
+              3'd1: spin_bonus = 16'd400 * level_mult;
+              3'd2: spin_bonus = 16'd800 * level_mult;
+              3'd3: spin_bonus = 16'd1200 * level_mult;
+              default: spin_bonus = 16'd0;
+          endcase
+      end
+      // J/L-Spin scoring (moderate bonus)
+      else if (is_j_spin || is_l_spin) begin
+          case (lines_cleared)
+              3'd1: spin_bonus = 16'd400 * level_mult;
+              3'd2: spin_bonus = 16'd800 * level_mult;
+              3'd3: spin_bonus = 16'd1200 * level_mult;
+              default: spin_bonus = 16'd0;
+          endcase
+      end
+      // I-Spin (rare, moderate bonus)
+      else if (is_i_spin) begin
+          case (lines_cleared)
+              3'd1: spin_bonus = 16'd400 * level_mult;
+              3'd2: spin_bonus = 16'd800 * level_mult;
+              3'd4: spin_bonus = 16'd1600 * level_mult;  // I-Spin Tetris
+              default: spin_bonus = 16'd0;
+          endcase
+      end
+      
+      // Total points
+      points_to_add = base_total + streak_bonus + spin_bonus;
   end
 
-    //   bin -> bcd 
-    logic [3:0] bcd_digits[4:0];  // Array to hold BCD digits
+  // BCD Conversion
+  logic [3:0] bcd_digits[4:0];
+  bin_to_bcd #(
+      .BINARY_WIDTH(16),
+      .BCD_DIGITS(5)
+  ) bcd_converter (
+      .binary(points_to_add),
+      .bcd(bcd_digits)
+  );
 
-    bin_to_bcd #(
-        .BINARY_WIDTH(16),
-        .BCD_DIGITS(5)
-    ) bcd_converter (
-        .binary(points_to_add),
-        .bcd(bcd_digits)
-    );
-
-    logic [3:0] bcd_ones, bcd_tens, bcd_hundreds, bcd_thousands, bcd_tenthousands;
-    always_comb begin
-        bcd_ones = bcd_digits[0];
-        bcd_tens = bcd_digits[1];
-        bcd_hundreds = bcd_digits[2];
-        bcd_thousands = bcd_digits[3];
-        bcd_tenthousands = bcd_digits[4];
-    end
+  logic [3:0] bcd_ones, bcd_tens, bcd_hundreds, bcd_thousands, bcd_tenthousands;
+  always_comb begin
+      bcd_ones = bcd_digits[0];
+      bcd_tens = bcd_digits[1];
+      bcd_hundreds = bcd_digits[2];
+      bcd_thousands = bcd_digits[3];
+      bcd_tenthousands = bcd_digits[4];
+  end
 
   // State Update & Data Path
   always_ff @(posedge clk) begin
@@ -415,6 +479,17 @@ module game_control (
         kick_attempt <= 0;
         rotate_direction <= 1;
         rotation_from <= 0;
+        last_move_was_rotation <= 0;
+        kick_used <= 0;
+        // Clear spin flags
+        spin_t_flag <= 0;
+        spin_s_flag <= 0;
+        spin_z_flag <= 0;
+        spin_j_flag <= 0;
+        spin_l_flag <= 0;
+        spin_i_flag <= 0;
+        is_mini_spin <= 0;
+        tetris_flag <= 0;
     end else begin
         ps <= ns;
         
@@ -427,15 +502,18 @@ module game_control (
         // Data Path Updates
         case (ps)
             IDLE: begin
-                // Capture rotation direction when entering ROTATE state
                 kick_attempt <= 0;
                 if (key_rotate_cw) begin
-                    rotate_direction <= 1;  // Clockwise
-                    rotation_from <= t_curr.rotation;  // Store source rotation
-                end else if (key_rotate_ccw) begin
-                    rotate_direction <= 0;  // Counter-clockwise
-                    // For CCW, adjust the lookup index
+                    rotate_direction <= 1;
                     rotation_from <= t_curr.rotation;
+                end else if (key_rotate_ccw) begin
+                    rotate_direction <= 0;
+                    rotation_from <= t_curr.rotation;
+                end
+                
+                // Clear last move flag if moving left/right/down
+                if (key_left || key_right || key_down) begin
+                    last_move_was_rotation <= 0;
                 end
             end
             
@@ -445,41 +523,54 @@ module game_control (
             
             DROP_LOCKOUT: begin
                 hold_used <= 0;
+                // Clear visual flags after a delay
+                spin_t_flag <= 0;
+                spin_s_flag <= 0;
+                spin_z_flag <= 0;
+                spin_j_flag <= 0;
+                spin_l_flag <= 0;
+                spin_i_flag <= 0;
+                is_mini_spin <= 0;
+                tetris_flag <= 0;
             end
             
             MOVE_LEFT: begin
-                if (valid) t_curr.coordinate.x <= t_curr.coordinate.x - 1;
+                if (valid) begin
+                    t_curr.coordinate.x <= t_curr.coordinate.x - 1;
+                    last_move_was_rotation <= 0;  // Movement cancels rotation flag
+                end
             end
             
             MOVE_RIGHT: begin
-                if (valid) t_curr.coordinate.x <= t_curr.coordinate.x + 1;
+                if (valid) begin
+                    t_curr.coordinate.x <= t_curr.coordinate.x + 1;
+                    last_move_was_rotation <= 0;  // Movement cancels rotation flag
+                end
             end
             
             ROTATE: begin
                 if (kick_attempt == 0) begin
-                    // Wait for rotation to complete
                     if (rotate_done) begin
                         if (valid) begin
-                            // First kick (no offset) succeeded
                             t_curr <= t_check;
-                            kick_attempt <= 0;  // Reset for next time
+                            kick_attempt <= 0;
+                            last_move_was_rotation <= 1;  // Mark as rotation move
+                            kick_used <= 0;  // No kick needed
                         end else begin
-                            // Try kick 1
                             kick_attempt <= 1;
                         end
                     end
                 end else begin
-                    // Testing kicks 1-4
                     if (valid) begin
-                        // This kick succeeded!
                         t_curr <= t_check;
-                        kick_attempt <= 0;  // Reset for next time
+                        kick_attempt <= 0;
+                        last_move_was_rotation <= 1;  // Mark as rotation move
+                        kick_used <= kick_attempt;  // Record which kick worked
                     end else if (kick_attempt < 4) begin
-                        // Try next kick
                         kick_attempt <= kick_attempt + 1;
                     end else begin
-                        // All kicks failed, reset counter
                         kick_attempt <= 0;
+                        last_move_was_rotation <= 0;  // Rotation failed
                     end
                 end
             end
@@ -487,6 +578,7 @@ module game_control (
             DOWN: begin
                 if (valid) begin
                     t_curr.coordinate.y <= t_curr.coordinate.y + 1;
+                    last_move_was_rotation <= 0;  // Down movement cancels rotation
                 end else begin
                     f_curr <= f_disp;
                 end
@@ -497,6 +589,8 @@ module game_control (
                     t_curr.coordinate.y <= t_curr.coordinate.y + 1;
                 end else begin
                     f_curr <= f_disp;
+                    // Hard drop cancels rotation flag (debatable - you can change this)
+                    last_move_was_rotation <= 0;
                 end
             end
             
@@ -508,6 +602,7 @@ module game_control (
                 t_hold.coordinate.x <= 3;
                 t_hold.coordinate.y <= 0;
                 hold_used <= 1;
+                last_move_was_rotation <= 0;
                 
                 if (hold_empty) begin
                     hold_empty <= 0;
@@ -520,197 +615,100 @@ module game_control (
                 t_curr.rotation <= 0;
                 t_curr.coordinate.x <= 3;
                 t_curr.coordinate.y <= 0;
+                last_move_was_rotation <= 0;
             end
             
-        CLEAN: begin
-            if (clean_done) begin
-                f_curr <= f_cleaned;
-                
-                if (lines_cleared != 0) begin
-                    total_lines_cleared <= total_lines_cleared + lines_cleared;
-                end
-                
-                if (lines_cleared != 0) begin
-                    if (consecutive_clears < 15) 
-                        consecutive_clears <= consecutive_clears + 1;
-                end else begin
-                    consecutive_clears <= 0;
-                end
-                
-                // Simple BCD Addition with pre-computed digits
-                if (lines_cleared != 0) begin
-                    automatic logic [3:0] new_ones, new_tens, new_hundreds, new_thousands, new_tenthousands;
-                    automatic logic c0, c1, c2, c3, c4;
+            CLEAN: begin
+                if (clean_done) begin
+                    f_curr <= f_cleaned;
                     
-                    // Add ones digit
-                    new_ones = score[3:0] + bcd_ones;
-                    if (new_ones >= 10) begin
-                        score[3:0] <= new_ones - 10;
-                        c0 = 1;
-                    end else begin
-                        score[3:0] <= new_ones;
-                        c0 = 0;
+                    if (lines_cleared != 0) begin
+                        total_lines_cleared <= total_lines_cleared + lines_cleared;
                     end
                     
-                    // Add tens digit
-                    new_tens = score[7:4] + bcd_tens + c0;
-                    if (new_tens >= 10) begin
-                        score[7:4] <= new_tens - 10;
-                        c1 = 1;
+                    if (lines_cleared != 0) begin
+                        if (consecutive_clears < 15) 
+                            consecutive_clears <= consecutive_clears + 1;
                     end else begin
-                        score[7:4] <= new_tens;
-                        c1 = 0;
+                        consecutive_clears <= 0;
                     end
                     
-                    // Add hundreds digit
-                    new_hundreds = score[11:8] + bcd_hundreds + c1;
-                    if (new_hundreds >= 10) begin
-                        score[11:8] <= new_hundreds - 10;
-                        c2 = 1;
-                    end else begin
-                        score[11:8] <= new_hundreds;
-                        c2 = 0;
-                    end
+                    // Set visual flags
+                    tetris_flag <= (lines_cleared == 4);
+                    spin_t_flag <= is_t_spin;
+                    spin_s_flag <= is_s_spin;
+                    spin_z_flag <= is_z_spin;
+                    spin_j_flag <= is_j_spin;
+                    spin_l_flag <= is_l_spin;
+                    spin_i_flag <= is_i_spin;
+                    is_mini_spin <= is_t_spin_mini;
                     
-                    // Add thousands digit
-                    new_thousands = score[15:12] + bcd_thousands + c2;
-                    if (new_thousands >= 10) begin
-                        score[15:12] <= new_thousands - 10;
-                        c3 = 1;
-                    end else begin
-                        score[15:12] <= new_thousands;
-                        c3 = 0;
-                    end
-                    
-                    // Add ten-thousands digit
-                    new_tenthousands = score[19:16] + bcd_tenthousands + c3;
-                    if (new_tenthousands >= 10) begin
-                        score[19:16] <= new_tenthousands - 10;
-                        c4 = 1;
-                    end else begin
-                        score[19:16] <= new_tenthousands;
-                        c4 = 0;
-                    end
-                    
-                    // Carry propagation for higher digits
-                    if (c4) begin
-                        if (score[23:20] == 9) begin
-                            score[23:20] <= 0;
-                            if (score[27:24] == 9) begin
-                                score[27:24] <= 0;
-                                score[31:28] <= score[31:28] + 1;
-                            end else begin
-                                score[27:24] <= score[27:24] + 1;
-                            end
+                    // BCD Addition
+                    if (lines_cleared != 0) begin
+                        automatic logic [3:0] new_ones, new_tens, new_hundreds, new_thousands, new_tenthousands;
+                        automatic logic c0, c1, c2, c3, c4;
+                        
+                        new_ones = score[3:0] + bcd_ones;
+                        if (new_ones >= 10) begin
+                            score[3:0] <= new_ones - 10;
+                            c0 = 1;
                         end else begin
-                            score[23:20] <= score[23:20] + 1;
+                            score[3:0] <= new_ones;
+                            c0 = 0;
+                        end
+                        
+                        new_tens = score[7:4] + bcd_tens + c0;
+                        if (new_tens >= 10) begin
+                            score[7:4] <= new_tens - 10;
+                            c1 = 1;
+                        end else begin
+                            score[7:4] <= new_tens;
+                            c1 = 0;
+                        end
+                        
+                        new_hundreds = score[11:8] + bcd_hundreds + c1;
+                        if (new_hundreds >= 10) begin
+                            score[11:8] <= new_hundreds - 10;
+                            c2 = 1;
+                        end else begin
+                            score[11:8] <= new_hundreds;
+                            c2 = 0;
+                        end
+                        
+                        new_thousands = score[15:12] + bcd_thousands + c2;
+                        if (new_thousands >= 10) begin
+                            score[15:12] <= new_thousands - 10;
+                            c3 = 1;
+                        end else begin
+                            score[15:12] <= new_thousands;
+                            c3 = 0;
+                        end
+                        
+                        new_tenthousands = score[19:16] + bcd_tenthousands + c3;
+                        if (new_tenthousands >= 10) begin
+                            score[19:16] <= new_tenthousands - 10;
+                            c4 = 1;
+                        end else begin
+                            score[19:16] <= new_tenthousands;
+                            c4 = 0;
+                        end
+                        
+                        if (c4) begin
+                            if (score[23:20] == 9) begin
+                                score[23:20] <= 0;
+                                if (score[27:24] == 9) begin
+                                    score[27:24] <= 0;
+                                    score[31:28] <= score[31:28] + 1;
+                                end else begin
+                                    score[27:24] <= score[27:24] + 1;
+                                end
+                            end else begin
+                                score[23:20] <= score[23:20] + 1;
+                            end
                         end
                     end
                 end
             end
-        end
-
-            // CLEAN: begin
-            //     if (clean_done) begin
-            //         f_curr <= f_cleaned;
-                    
-            //         if (lines_cleared != 0) begin
-            //             total_lines_cleared <= total_lines_cleared + lines_cleared;
-            //         end
-                    
-            //         if (lines_cleared != 0) begin
-            //             if (consecutive_clears < 15) 
-            //                 consecutive_clears <= consecutive_clears + 1;
-            //         end else begin
-            //             consecutive_clears <= 0;
-            //         end
-                    
-            //         // BCD Score Addition (same as before)
-            //         if (lines_cleared != 0) begin
-            //             logic [15:0] points_remaining;
-            //             logic [3:0] digit_value;
-            //             logic [3:0] new_digit;
-            //             logic carry;
-                        
-            //             points_remaining = points_to_add;
-                        
-            //             // Ones digit
-            //             digit_value = points_remaining % 10;
-            //             points_remaining = points_remaining / 10;
-            //             new_digit = score[3:0] + digit_value;
-            //             if (new_digit >= 10) begin
-            //                 score[3:0] <= new_digit - 10;
-            //                 carry = 1;
-            //             end else begin
-            //                 score[3:0] <= new_digit;
-            //                 carry = 0;
-            //             end
-                        
-            //             // Tens digit
-            //             digit_value = (points_remaining % 10) + carry;
-            //             points_remaining = points_remaining / 10;
-            //             new_digit = score[7:4] + digit_value;
-            //             if (new_digit >= 10) begin
-            //                 score[7:4] <= new_digit - 10;
-            //                 carry = 1;
-            //             end else begin
-            //                 score[7:4] <= new_digit;
-            //                 carry = 0;
-            //             end
-                        
-            //             // Hundreds digit
-            //             digit_value = (points_remaining % 10) + carry;
-            //             points_remaining = points_remaining / 10;
-            //             new_digit = score[11:8] + digit_value;
-            //             if (new_digit >= 10) begin
-            //                 score[11:8] <= new_digit - 10;
-            //                 carry = 1;
-            //             end else begin
-            //                 score[11:8] <= new_digit;
-            //                 carry = 0;
-            //             end
-                        
-            //             // Thousands digit
-            //             digit_value = (points_remaining % 10) + carry;
-            //             points_remaining = points_remaining / 10;
-            //             new_digit = score[15:12] + digit_value;
-            //             if (new_digit >= 10) begin
-            //                 score[15:12] <= new_digit - 10;
-            //                 carry = 1;
-            //             end else begin
-            //                 score[15:12] <= new_digit;
-            //                 carry = 0;
-            //             end
-                        
-            //             // Ten-thousands digit
-            //             digit_value = (points_remaining % 10) + carry;
-            //             points_remaining = points_remaining / 10;
-            //             new_digit = score[19:16] + digit_value;
-            //             if (new_digit >= 10) begin
-            //                 score[19:16] <= new_digit - 10;
-            //                 carry = 1;
-            //             end else begin
-            //                 score[19:16] <= new_digit;
-            //                 carry = 0;
-            //             end
-                        
-            //             // Carry propagation
-            //             if (carry) begin
-            //                 if (score[23:20] == 9) begin
-            //                     score[23:20] <= 0;
-            //                     if (score[27:24] == 9) begin
-            //                         score[27:24] <= 0;
-            //                         score[31:28] <= score[31:28] + 1;
-            //                     end else begin
-            //                         score[27:24] <= score[27:24] + 1;
-            //                     end
-            //                 end else begin
-            //                     score[23:20] <= score[23:20] + 1;
-            //                 end
-            //             end
-            //         end
-            //     end
-            // end
             
             GAME_OVER_STATE: begin
                 game_over <= 1;
@@ -727,6 +725,8 @@ module game_control (
                 score <= 0;
                 game_over <= 0;
                 kick_attempt <= 0;
+                last_move_was_rotation <= 0;
+                kick_used <= 0;
             end
         endcase
     end

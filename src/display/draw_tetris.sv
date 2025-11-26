@@ -17,6 +17,16 @@ module draw_tetris(
     // Ghost pieces 
     input  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
     input  tetromino_ctrl  t_curr, // Current piece for ghost rendering
+
+    // flags for spins and tetris
+    input  logic           spin_t_flag,
+    input  logic           spin_s_flag,
+    input  logic           spin_z_flag,
+    input  logic           spin_j_flag,
+    input  logic           spin_l_flag,
+    input  logic           spin_i_flag,
+    input  logic           is_mini_spin,
+    input  logic           tetris_flag,
     
     // Sprite Interface
     output logic [3:0]     sprite_addr_x,
@@ -42,7 +52,8 @@ module draw_tetris(
     localparam SIDE_X_START = GRID_X_START + GRID_W + 50;
     localparam NEXT_Y_START = GRID_Y_START;
     localparam SCORE_Y_START = NEXT_Y_START + 200;
-    localparam LEVEL_Y_START = SCORE_Y_START + 150;
+    localparam MESSAGE_Y_START = SCORE_Y_START + 100; // Below score
+    localparam LEVEL_Y_START = MESSAGE_Y_START + 50;
     
     // Left Sidebar (Hold Piece)
     localparam HOLD_X_START = GRID_X_START - 200;
@@ -102,6 +113,147 @@ module draw_tetris(
         .pos_y(SCORE_Y_START + 40), // Below label
         .number(score),
         .pixel_on(score_pixel_on)
+    );
+    
+    // Message text rendering (for spins and tetris)
+    logic message_pixel_on;
+    logic [7:0] message_chars [0:15];
+    logic [3:0] message_len;
+    
+    // Determine which message to display (priority order)
+    always_comb begin
+        message_len = 0;
+        // Initialize to spaces
+        for (int i = 0; i < 16; i++) begin
+            message_chars[i] = 8'h20; // Space
+        end
+        
+        // Priority: TETRIS > T-SPIN > I-SPIN > S-SPIN > Z-SPIN > J-SPIN > L-SPIN
+        if (tetris_flag) begin
+            // "TETRIS"
+            message_chars[0] = 8'h54; // T
+            message_chars[1] = 8'h45; // E
+            message_chars[2] = 8'h54; // T
+            message_chars[3] = 8'h52; // R
+            message_chars[4] = 8'h49; // I
+            message_chars[5] = 8'h53; // S
+            message_len = 6;
+        end else if (spin_t_flag) begin
+            // "T-SPIN" or "T-SPIN MINI"
+            message_chars[0] = 8'h54; // T
+            message_chars[1] = 8'h2D; // -
+            message_chars[2] = 8'h53; // S
+            message_chars[3] = 8'h50; // P
+            message_chars[4] = 8'h49; // I
+            message_chars[5] = 8'h4E; // N
+            if (is_mini_spin) begin
+                message_chars[6] = 8'h20; // Space
+                message_chars[7] = 8'h4D; // M
+                message_chars[8] = 8'h49; // I
+                message_chars[9] = 8'h4E; // N
+                message_chars[10] = 8'h49; // I
+                message_len = 11;
+            end else begin
+                message_len = 6;
+            end
+        end else if (spin_i_flag) begin
+            // "I-SPIN"
+            message_chars[0] = 8'h49; // I
+            message_chars[1] = 8'h2D; // -
+            message_chars[2] = 8'h53; // S
+            message_chars[3] = 8'h50; // P
+            message_chars[4] = 8'h49; // I
+            message_chars[5] = 8'h4E; // N
+            message_len = 6;
+        end else if (spin_s_flag) begin
+            // "S-SPIN"
+            message_chars[0] = 8'h53; // S
+            message_chars[1] = 8'h2D; // -
+            message_chars[2] = 8'h53; // S
+            message_chars[3] = 8'h50; // P
+            message_chars[4] = 8'h49; // I
+            message_chars[5] = 8'h4E; // N
+            message_len = 6;
+        end else if (spin_z_flag) begin
+            // "Z-SPIN"
+            message_chars[0] = 8'h5A; // Z
+            message_chars[1] = 8'h2D; // -
+            message_chars[2] = 8'h53; // S
+            message_chars[3] = 8'h50; // P
+            message_chars[4] = 8'h49; // I
+            message_chars[5] = 8'h4E; // N
+            message_len = 6;
+        end else if (spin_j_flag) begin
+            // "J-SPIN"
+            message_chars[0] = 8'h4A; // J
+            message_chars[1] = 8'h2D; // -
+            message_chars[2] = 8'h53; // S
+            message_chars[3] = 8'h50; // P
+            message_chars[4] = 8'h49; // I
+            message_chars[5] = 8'h4E; // N
+            message_len = 6;
+        end else if (spin_l_flag) begin
+            // "L-SPIN"
+            message_chars[0] = 8'h4C; // L
+            message_chars[1] = 8'h2D; // -
+            message_chars[2] = 8'h53; // S
+            message_chars[3] = 8'h50; // P
+            message_chars[4] = 8'h49; // I
+            message_chars[5] = 8'h4E; // N
+            message_len = 6;
+        end
+    end
+    
+    draw_string_line message_draw (
+        .curr_x(curr_x),
+        .curr_y(curr_y),
+        .pos_x(SIDE_X_START),
+        .pos_y(MESSAGE_Y_START),
+        .str_chars(message_chars),
+        .str_len(message_len),
+        .pixel_on(message_pixel_on)
+    );
+    
+    // Level text rendering ("Level: X")
+    logic level_text_pixel_on;
+    logic [7:0] level_text_chars [0:15];
+    logic [3:0] level_text_len;
+    
+    always_comb begin
+        // "Level: " = 7 characters
+        level_text_chars[0] = 8'h4C; // L
+        level_text_chars[1] = 8'h45; // E
+        level_text_chars[2] = 8'h56; // V
+        level_text_chars[3] = 8'h45; // E
+        level_text_chars[4] = 8'h4C; // L
+        level_text_chars[5] = 8'h3A; // :
+        level_text_chars[6] = 8'h20; // Space
+        
+        // Convert level number to ASCII
+        if (current_level < 10) begin
+            level_text_chars[7] = 8'h30 + current_level; // '0' + level
+            level_text_len = 8;
+        end else begin
+            // For levels 10-15, show as hex or two digits
+            level_text_chars[7] = 8'h31; // '1'
+            level_text_chars[8] = 8'h30 + (current_level - 10); // '0' + (level - 10)
+            level_text_len = 9;
+        end
+        
+        // Fill rest with spaces
+        for (int i = level_text_len; i < 16; i++) begin
+            level_text_chars[i] = 8'h20; // Space
+        end
+    end
+    
+    draw_string_line level_text_draw (
+        .curr_x(curr_x),
+        .curr_y(curr_y),
+        .pos_x(SIDE_X_START),
+        .pos_y(LEVEL_Y_START),
+        .str_chars(level_text_chars),
+        .str_len(level_text_len),
+        .pixel_on(level_text_pixel_on)
     );
 
     // Output Logic
@@ -297,28 +449,65 @@ module draw_tetris(
                  end
             end
             
-            // 5. Draw Level (Below Score)
+            // 4.5. Draw Message (Below Score) - Shows TETRIS, T-SPIN, etc.
+            else if (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 200 &&
+                     curr_y >= MESSAGE_Y_START && curr_y < MESSAGE_Y_START + 50) begin
+                if (message_pixel_on && message_len > 0) begin
+                    // Color based on message type
+                    if (tetris_flag) begin
+                        // Gold/Yellow for TETRIS
+                        vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'h0;
+                    end else if (spin_t_flag) begin
+                        // Cyan for T-SPIN
+                        vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'hF;
+                    end else if (spin_i_flag) begin
+                        // Red for I-SPIN
+                        vga_r = 4'hF; vga_g = 4'h0; vga_b = 4'h0;
+                    end else if (spin_s_flag) begin
+                        // Magenta for S-SPIN
+                        vga_r = 4'hF; vga_g = 4'h0; vga_b = 4'hF;
+                    end else if (spin_z_flag) begin
+                        // Orange for Z-SPIN
+                        vga_r = 4'hF; vga_g = 4'hA; vga_b = 4'h0;
+                    end else if (spin_j_flag) begin
+                        // Green for J-SPIN
+                        vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'h0;
+                    end else if (spin_l_flag) begin
+                        // Blue for L-SPIN
+                        vga_r = 4'h0; vga_g = 4'h0; vga_b = 4'hF;
+                    end else begin
+                        // White default
+                        vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'hF;
+                    end
+                end
+            end
+            
+            // 5. Draw Level (Below Message)
             else if (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 200 &&
                      curr_y >= LEVEL_Y_START && curr_y < LEVEL_Y_START + 100) begin
                  
-                 // Label "LEVEL"
+                 // Draw "Level: X" text
                  if (curr_y < LEVEL_Y_START + 20) begin
-                     vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'hF; // Cyan Header
-                 end else begin
-                     // Draw Level Bar (16 segments, one per level)
-                     level_bar_width = (current_level + 1) * 10; // Each level = 10 pixels
-                     
-                     if (curr_x < SIDE_X_START + level_bar_width &&
-                         curr_y >= LEVEL_Y_START + 40 && curr_y < LEVEL_Y_START + 60) begin
-                         // Gradient color based on level
-                         if (current_level < 5) begin
-                             vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'h0; // Green (Easy)
-                         end else if (current_level < 10) begin
-                             vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'h0; // Yellow (Medium)
-                         end else begin
-                             vga_r = 4'hF; vga_g = 4'h0; vga_b = 4'h0; // Red (Hard)
-                         end
+                     if (level_text_pixel_on) begin
+                         vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'hF; // Cyan text
                      end
+                 end else begin
+                     // Draw Level Bar (only if not at max level)
+                    //  if (current_level < 15) begin
+                         level_bar_width = (current_level + 1) * 10; // Each level = 10 pixels
+                         
+                         if (curr_x < SIDE_X_START + level_bar_width &&
+                             curr_y >= LEVEL_Y_START + 40 && curr_y < LEVEL_Y_START + 60) begin
+                             // Gradient color based on level
+                             if (current_level < 5) begin
+                                 vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'h0; // Green (Easy)
+                             end else if (current_level < 10) begin
+                                 vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'h0; // Yellow (Medium)
+                             end else begin
+                                 vga_r = 4'hF; vga_g = 4'h0; vga_b = 4'h0; // Red (Hard)
+                             end
+                         end
+                    //  end
                  end
             end
             // 6. Heartbeat (Bottom Right of Grid) to indicate that we can continue the game once its is over 

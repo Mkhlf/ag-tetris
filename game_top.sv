@@ -260,7 +260,17 @@ module game_top(
         .hold_used_out(hold_used),
         .current_level_out(current_level),
         .ghost_y(ghost_y),
-        .t_curr_out(t_curr)
+        .t_curr_out(t_curr),
+
+        // flags for spins and tetris
+        .spin_t_flag(spin_t_flag),
+        .spin_s_flag(spin_s_flag),
+        .spin_z_flag(spin_z_flag),
+        .spin_j_flag(spin_j_flag),
+        .spin_l_flag(spin_l_flag),
+        .spin_i_flag(spin_i_flag),
+        .is_mini_spin(is_mini_spin),
+        .tetris_flag(tetris_flag)
     );
 
     // VGA Output (Raw)
@@ -308,6 +318,14 @@ module game_top(
         .current_level(current_level),
         .ghost_y(ghost_y),
         .t_curr(t_curr),
+        .spin_t_flag(spin_t_flag),
+        .spin_s_flag(spin_s_flag),
+        .spin_z_flag(spin_z_flag),
+        .spin_j_flag(spin_j_flag),
+        .spin_l_flag(spin_l_flag),
+        .spin_i_flag(spin_i_flag),
+        .is_mini_spin(is_mini_spin),
+        .tetris_flag(tetris_flag),
         .sprite_addr_x(sprite_addr_x),
         .sprite_addr_y(sprite_addr_y),
         .sprite_pixel(sprite_pixel),
