@@ -15,8 +15,14 @@ module debouncer(
     
     // Use 5-bit counters for fast PS2 debouncing (~20 cycles)
     // At 50MHz: 20 cycles = 400ns, well within PS2 timing requirements
-    reg [4:0] cnt0, cnt1;
+    reg [4:0] cnt0 = 0, cnt1 = 0;
     reg Iv0 = 0, Iv1 = 0;
+    
+    // Initialize outputs to match expected idle state (PS2 lines idle high)
+    initial begin
+        O0 = 1'b1;
+        O1 = 1'b1;
+    end
     
     localparam CNT_MAX = 19; // Fast debounce for PS2 signals
 

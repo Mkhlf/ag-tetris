@@ -46,6 +46,7 @@ module tb_input_manager;
         // Test 1: Rotate One-Shot
         // ================================================================
         $display("Test 1: Rotate One-Shot");
+        @(negedge clk);  // Setup time before clock edge
         raw_rotate = 1;
         @(posedge clk);
         #1;
@@ -77,6 +78,7 @@ module tb_input_manager;
             fail_count++;
         end
         
+        @(negedge clk);
         raw_rotate = 0;
         @(posedge clk);
         
@@ -84,6 +86,7 @@ module tb_input_manager;
         // Test 2: Drop One-Shot
         // ================================================================
         $display("\nTest 2: Drop One-Shot");
+        @(negedge clk);  // Setup time before clock edge
         raw_drop = 1;
         @(posedge clk);
         #1;
@@ -105,6 +108,7 @@ module tb_input_manager;
             fail_count++;
         end
         
+        @(negedge clk);
         raw_drop = 0;
         @(posedge clk);
         
@@ -112,6 +116,7 @@ module tb_input_manager;
         // Test 3: Hold One-Shot (NEW)
         // ================================================================
         $display("\nTest 3: Hold One-Shot");
+        @(negedge clk);  // Setup time before clock edge
         raw_hold = 1;
         @(posedge clk);
         #1;
@@ -143,11 +148,12 @@ module tb_input_manager;
             fail_count++;
         end
         
+        @(negedge clk);
         raw_hold = 0;
         @(posedge clk);
         
         // Release and press again
-        #20;
+        @(negedge clk);
         raw_hold = 1;
         @(posedge clk);
         #1;
@@ -158,6 +164,7 @@ module tb_input_manager;
             $display("  FAIL: Hold did not trigger after release");
             fail_count++;
         end
+        @(negedge clk);
         raw_hold = 0;
         @(posedge clk);
         
@@ -165,7 +172,7 @@ module tb_input_manager;
         // Test 4: DAS (Left) - Classic Tetris Feel
         // ================================================================
         $display("\nTest 4: Left DAS (Delayed Auto Shift)");
-        #10;
+        @(negedge clk);  // Setup time
         raw_left = 1;
         @(posedge clk); // Trigger edge
         #1;
@@ -224,6 +231,7 @@ module tb_input_manager;
         // Test 5: Down Fast Repeat
         // ================================================================
         $display("\nTest 5: Down Fast Repeat (Soft Drop)");
+        @(negedge clk);  // Setup time
         raw_down = 1;
         @(posedge clk);
         #1;

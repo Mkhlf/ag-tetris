@@ -36,9 +36,11 @@ module PS2Receiver(
     reg flag;
     
     initial begin
-        keycode[31:0]<=0'h00000000;
-        cnt<=4'b0000;
-        flag<=1'b0;
+        keycode[31:0] <= 32'h00000000;
+        cnt <= 4'b0000;
+        flag <= 1'b0;
+        datacur <= 8'h00;
+        dataprev <= 8'h00;
     end
     
 debouncer debounce(

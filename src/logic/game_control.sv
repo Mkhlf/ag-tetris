@@ -271,7 +271,13 @@ module game_control (
         case (ps)
             GEN_WAIT: begin
                 t_curr <= t_gen;
-                hold_used <= 0; // Reset hold_used for new piece
+                // Note: hold_used is reset in DROP_LOCKOUT, not here
+                // This allows hold to work correctly when coming from HOLD->GEN->GEN_WAIT
+            end
+            
+            DROP_LOCKOUT: begin
+                // Reset hold_used when piece is placed (ready for next piece)
+                hold_used <= 0;
             end
             
             MOVE_LEFT: begin
