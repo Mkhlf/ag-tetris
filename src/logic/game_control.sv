@@ -8,18 +8,18 @@ module game_control (
     // Inputs (Single Pulse)
     input   logic           key_left,
     input   logic           key_right,
-    input   logic           key_down,   // Soft Drop (Continuous or Pulse?) - usually continuous for soft drop
-    input   logic           key_rotate, // Pulse
-    input   logic           key_drop,   // Hard Drop Pulse
-    input   logic           key_hold,   // Hold Piece Pulse
-    input   logic           key_drop_held, // Raw state for lockout
+    input   logic           key_down,
+    input   logic           key_rotate,
+    input   logic           key_drop,
+    input   logic           key_hold,
+    input   logic           key_drop_held,
     
     output  field_t         display,
     output  logic [31:0]    score,
     output  logic           game_over,
     output  tetromino_ctrl  t_next_disp,
-    output  tetromino_ctrl  t_hold_disp,  // Hold piece for display
-    output  logic           hold_used_out, // Whether hold was used this piece
+    output  tetromino_ctrl  t_hold_disp,
+    output  logic           hold_used_out,
     output  logic [3:0]     current_level_out,
     output  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
     output  tetromino_ctrl  t_curr_out
@@ -48,11 +48,15 @@ module game_control (
   
   // Internal Signals
   tetromino_ctrl t_curr, t_curr_cand, t_gen, t_gen_next;
-  tetromino_ctrl t_check; // Candidate for validation
-  tetromino_ctrl t_hold;  // Held piece
-  tetromino_ctrl t_hold_old; // Temp storage for swap
-  logic hold_used;        // Can only hold once per piece placement
-  logic hold_empty;       // Whether hold slot is empty
+  tetromino_ctrl t_check;
+  tetromino_ctrl t_hold;
+  tetromino_ctrl t_hold_old;
+  logic hold_used;
+  logic hold_empty;
+  
+  // Scoring & Level Tracking
+  logic [7:0] total_lines_cleared;  // Total lines for level calculation
+  logic [3:0] consecutive_clears;   // Streak counter (0-15)
   
   field_t f_curr, f_disp, f_cleaned;
   
@@ -66,22 +70,36 @@ module game_control (
   logic [31:0] drop_speed_frames;
   
   always_comb begin
-      // Level increases every 10 lines (approx 1000 score / 100)
-      // Level increases every 1000 points (10 lines)
-      // Score is BCD. Thousands digit is score[15:12]. Ten-thousands is score[19:16].
-      current_level = score[15:12] + (score[19:16] * 10); 
+      // NES-style leveling: 10 lines per level
+      current_level = total_lines_cleared / 10;
       if (current_level > 15) current_level = 15;
-       // Speed: 40 frames (faster start) -> 5 frames (fast)
-       if (current_level * 2 >= 35) drop_speed_frames = 5;
-       else drop_speed_frames = 40 - (current_level * 2);
+      
+      // NES-inspired speed curve
+      case (current_level)
+          0: drop_speed_frames = 48;
+          1: drop_speed_frames = 43;
+          2: drop_speed_frames = 38;
+          3: drop_speed_frames = 33;
+          4: drop_speed_frames = 28;
+          5: drop_speed_frames = 23;
+          6: drop_speed_frames = 18;
+          7: drop_speed_frames = 13;
+          8: drop_speed_frames = 8;
+          9: drop_speed_frames = 6;
+          10: drop_speed_frames = 5;
+          11: drop_speed_frames = 5;
+          12: drop_speed_frames = 5;
+          13: drop_speed_frames = 4;
+          14: drop_speed_frames = 4;
+          15: drop_speed_frames = 3;
+          default: drop_speed_frames = 3;
+      endcase
   end
   
   // Timers
   integer drop_timer;
   
   // Submodules
-  
-  // Generator
   generate_tetromino gen (
     .clk(clk),
     .rst(rst),
@@ -90,7 +108,6 @@ module game_control (
     .t_next_out(t_gen_next)
   );
   
-  // Rotation
   tetromino_ctrl t_rotated;
   rotate_clockwise rot (
     .clk(clk),
@@ -101,21 +118,18 @@ module game_control (
     .done(rotate_done)
   );
   
-  // Validation
   check_valid validator (
     .t_ctrl(t_check),
     .f(f_curr),
     .isValid(valid)
   );
   
-  // Field Creation (Merging Piece)
   create_field merger (
     .t_ctrl(t_curr),
     .f(f_curr),
     .f_out(f_disp)
   );
   
-  // Cleaning
   clean_field cleaner (
     .clk(clk),
     .enable(ps == CLEAN),
@@ -125,7 +139,6 @@ module game_control (
     .done(clean_done)
   );
 
-  // Ghost Calculation
   ghost_calc ghost (
     .t_curr(t_curr),
     .f(f_curr),
@@ -141,16 +154,15 @@ module game_control (
   
   // Candidate Logic for Validation
   always_comb begin
-    t_check = t_curr; // Default
+    t_check = t_curr;
     case (ps)
-        GEN_WAIT: t_check = t_gen; // Check the generated piece
+        GEN_WAIT: t_check = t_gen;
         MOVE_LEFT: t_check.coordinate.x = t_curr.coordinate.x - 1;
         MOVE_RIGHT: t_check.coordinate.x = t_curr.coordinate.x + 1;
         DOWN: t_check.coordinate.y = t_curr.coordinate.y + 1;
         HARD_DROP: t_check.coordinate.y = t_curr.coordinate.y + 1;
-        ROTATE: t_check = t_rotated; // Use output of rotator
+        ROTATE: t_check = t_rotated;
         HOLD_SWAP: begin
-            // After swapping, validate the old held piece at spawn position
             t_check = t_hold_old;
             t_check.coordinate.x = 3;
             t_check.coordinate.y = 0;
@@ -164,12 +176,9 @@ module game_control (
   always_comb begin
     ns = ps;
     case (ps)
-        GEN: begin
-            ns = GEN_WAIT;
-        end
+        GEN: ns = GEN_WAIT;
         
         GEN_WAIT: begin
-            // t_gen is now stable
             if (valid) ns = IDLE;
             else ns = GAME_OVER_STATE;
         end
@@ -180,8 +189,6 @@ module game_control (
             else if (key_rotate) ns = ROTATE;
             else if (key_left) ns = MOVE_LEFT;
             else if (key_right) ns = MOVE_RIGHT;
-            // Fix: key_down is already a pulse from input_manager, don't AND with tick_game again
-            // Dynamic speed based on level
             else if (drop_timer >= drop_speed_frames || key_down) ns = DOWN;
         end
         
@@ -194,27 +201,22 @@ module game_control (
         
         DOWN: begin
             if (valid) ns = IDLE;
-            else ns = CLEAN; // Lock and Clean
+            else ns = CLEAN;
         end
         
         HARD_DROP: begin
-            // If valid, we moved down. Loop back to HARD_DROP to keep moving.
-            // If invalid, we hit bottom. Go to CLEAN.
             if (valid) ns = HARD_DROP;
             else ns = CLEAN;
         end
         
         HOLD: begin
-            // If hold is empty, just store current and get new piece
-            // If hold has a piece, swap them
             if (hold_empty) ns = GEN;
             else ns = HOLD_SWAP;
         end
         
         HOLD_SWAP: begin
-            // After swap, validate the swapped piece
             if (valid) ns = IDLE;
-            else ns = GAME_OVER_STATE; // Rare: swapped piece doesn't fit
+            else ns = GAME_OVER_STATE;
         end
         
         CLEAN: begin
@@ -222,19 +224,11 @@ module game_control (
         end
         
         GAME_OVER_STATE: begin
-            // Restart on Middle Button (key_drop)
-            if (key_drop) begin
-                ns = RESET_GAME;
-            end
+            if (key_drop) ns = RESET_GAME;
         end
         
-        RESET_GAME: begin
-            ns = WARMUP;
-        end
-        
-        WARMUP: begin
-            ns = GEN;
-        end
+        RESET_GAME: ns = WARMUP;
+        WARMUP: ns = GEN;
         
         DROP_LOCKOUT: begin
             if (!key_drop_held) ns = GEN;
@@ -242,11 +236,61 @@ module game_control (
     endcase
   end
   
+  // =====================================================================
+  // NES-STYLE SCORING COMPUTATION (Combinational)
+  // =====================================================================
+  // Formula: base_score × (level + 1) + streak_bonus
+  //
+  // Base scores (NES Tetris):
+  //   Single: 40 points
+  //   Double: 100 points
+  //   Triple: 300 points
+  //   Tetris: 1200 points (BIG reward!)
+  //
+  // Streak bonus: consecutive_clears × 100 (capped at 500)
+  // =====================================================================
+  
+  logic [11:0] base_score_raw;    // Base score before level multiply
+  logic [4:0]  level_mult;        // (level + 1)
+  logic [15:0] base_total;        // base × level
+  logic [9:0]  streak_bonus;      // Streak bonus points
+  logic [15:0] points_to_add;     // Total points to add
+  
+  always_comb begin
+      // NES base scores
+      case (lines_cleared)
+          3'd1: base_score_raw = 12'd40;
+          3'd2: base_score_raw = 12'd100;
+          3'd3: base_score_raw = 12'd300;
+          3'd4: base_score_raw = 12'd1200;  // TETRIS!
+          default: base_score_raw = 12'd0;
+      endcase
+      
+      // Level multiplier (current_level + 1)
+      level_mult = (current_level < 15) ? (current_level + 1) : 5'd16;
+      
+      // Multiply base by level
+      base_total = base_score_raw * level_mult;
+      
+      // Streak bonus: +100 per consecutive clear, capped at +500
+      if (lines_cleared != 0 && consecutive_clears > 0) begin
+          if (consecutive_clears >= 5)
+              streak_bonus = 10'd500;  // Cap at 500
+          else
+              streak_bonus = consecutive_clears * 10'd100;
+      end else begin
+          streak_bonus = 10'd0;
+      end
+      
+      // Total points to add this clear
+      points_to_add = base_total + streak_bonus;
+  end
+  
   // State Update & Data Path
   always_ff @(posedge clk) begin
     if (rst) begin
         ps <= WARMUP;
-        f_curr.data <= '1; // Initialize to all 1s (TETROMINO_EMPTY = 3'b111)
+        f_curr.data <= '1;
         t_curr.idx.data <= `TETROMINO_EMPTY;
         t_curr.tetromino.data <= '0;
         t_hold.idx.data <= `TETROMINO_EMPTY;
@@ -255,6 +299,8 @@ module game_control (
         t_hold_old.tetromino.data <= '0;
         hold_empty <= 1;
         hold_used <= 0;
+        total_lines_cleared <= 0;
+        consecutive_clears <= 0;
         score <= 0;
         game_over <= 0;
         drop_timer <= 0;
@@ -265,18 +311,15 @@ module game_control (
         if (tick_game) begin
             if (ps == IDLE) drop_timer <= drop_timer + 1;
         end
-        if (ps == DOWN || ps == GEN) drop_timer <= 0; // Reset on drop or spawn
+        if (ps == DOWN || ps == GEN) drop_timer <= 0;
         
         // Data Path Updates
         case (ps)
             GEN_WAIT: begin
                 t_curr <= t_gen;
-                // Note: hold_used is reset in DROP_LOCKOUT, not here
-                // This allows hold to work correctly when coming from HOLD->GEN->GEN_WAIT
             end
             
             DROP_LOCKOUT: begin
-                // Reset hold_used when piece is placed (ready for next piece)
                 hold_used <= 0;
             end
             
@@ -296,13 +339,7 @@ module game_control (
                 if (valid) begin
                     t_curr.coordinate.y <= t_curr.coordinate.y + 1;
                 end else begin
-                    // Lock happens implicitly by NOT updating t_curr 
-                    // and merging it into f_curr via create_field logic?
-                    // No, create_field creates f_disp (visual only).
-                    // We need to bake t_curr into f_curr.
-                    // But wait, create_field does exactly that: f_out = f + t.
-                    // So if we set f_curr <= f_disp (which is f_curr + t_curr), we lock it.
-                    f_curr <= f_disp; 
+                    f_curr <= f_disp;
                 end
             end
             
@@ -310,15 +347,12 @@ module game_control (
                 if (valid) begin
                     t_curr.coordinate.y <= t_curr.coordinate.y + 1;
                 end else begin
-                    f_curr <= f_disp; // Lock
+                    f_curr <= f_disp;
                 end
             end
             
             HOLD: begin
-                // Save old held piece for swap (if not empty)
                 t_hold_old <= t_hold;
-                
-                // Store current piece in hold (reset rotation and position)
                 t_hold.idx <= t_curr.idx;
                 t_hold.tetromino <= t_curr.tetromino;
                 t_hold.rotation <= 0;
@@ -328,13 +362,10 @@ module game_control (
                 
                 if (hold_empty) begin
                     hold_empty <= 0;
-                    // Will transition to GEN to get new piece
                 end
-                // If not empty, will transition to HOLD_SWAP
             end
             
             HOLD_SWAP: begin
-                // Load the OLD held piece as current (from temp storage)
                 t_curr.idx <= t_hold_old.idx;
                 t_curr.tetromino <= t_hold_old.tetromino;
                 t_curr.rotation <= 0;
@@ -345,26 +376,109 @@ module game_control (
             CLEAN: begin
                 if (clean_done) begin
                     f_curr <= f_cleaned;
-                    // BCD Score Update (Add lines_cleared * 100)
-                    // score[11:8] is hundreds digit
-                    // We only add 1, 2, 3, or 4 to hundreds.
-                    if (score[11:8] + lines_cleared > 9) begin
-                        score[11:8] <= score[11:8] + lines_cleared - 10;
-                        // Carry to thousands
-                        if (score[15:12] == 9) begin
-                            score[15:12] <= 0;
-                            // Carry to ten-thousands
-                            if (score[19:16] == 9) begin
-                                score[19:16] <= 0;
-                                score[23:20] <= score[23:20] + 1;
-                            end else begin
-                                score[19:16] <= score[19:16] + 1;
-                            end
-                        end else begin
-                            score[15:12] <= score[15:12] + 1;
-                        end
+                    
+                    // Update total lines cleared
+                    if (lines_cleared != 0) begin
+                        total_lines_cleared <= total_lines_cleared + lines_cleared;
+                    end
+                    
+                    // Update consecutive clears counter
+                    if (lines_cleared != 0) begin
+                        if (consecutive_clears < 15) 
+                            consecutive_clears <= consecutive_clears + 1;
                     end else begin
-                        score[11:8] <= score[11:8] + lines_cleared;
+                        consecutive_clears <= 0;  // Reset on empty clear
+                    end
+                    
+                    // ====================================================
+                    // BCD Score Addition
+                    // Add points_to_add (binary) to score (BCD)
+                    // Max value: 1200 × 16 + 500 = 19,700
+                    // ====================================================
+                    if (lines_cleared != 0) begin
+                        // Convert binary points to BCD and add
+                        // We'll do this digit by digit with carry propagation
+                        logic [15:0] points_remaining;
+                        logic [3:0] digit_value;
+                        logic [3:0] new_digit;
+                        logic carry;
+                        
+                        points_remaining = points_to_add;
+                        
+                        // Ones digit: score[3:0]
+                        digit_value = points_remaining % 10;
+                        points_remaining = points_remaining / 10;
+                        new_digit = score[3:0] + digit_value;
+                        if (new_digit >= 10) begin
+                            score[3:0] <= new_digit - 10;
+                            carry = 1;
+                        end else begin
+                            score[3:0] <= new_digit;
+                            carry = 0;
+                        end
+                        
+                        // Tens digit: score[7:4]
+                        digit_value = (points_remaining % 10) + carry;
+                        points_remaining = points_remaining / 10;
+                        new_digit = score[7:4] + digit_value;
+                        if (new_digit >= 10) begin
+                            score[7:4] <= new_digit - 10;
+                            carry = 1;
+                        end else begin
+                            score[7:4] <= new_digit;
+                            carry = 0;
+                        end
+                        
+                        // Hundreds digit: score[11:8]
+                        digit_value = (points_remaining % 10) + carry;
+                        points_remaining = points_remaining / 10;
+                        new_digit = score[11:8] + digit_value;
+                        if (new_digit >= 10) begin
+                            score[11:8] <= new_digit - 10;
+                            carry = 1;
+                        end else begin
+                            score[11:8] <= new_digit;
+                            carry = 0;
+                        end
+                        
+                        // Thousands digit: score[15:12]
+                        digit_value = (points_remaining % 10) + carry;
+                        points_remaining = points_remaining / 10;
+                        new_digit = score[15:12] + digit_value;
+                        if (new_digit >= 10) begin
+                            score[15:12] <= new_digit - 10;
+                            carry = 1;
+                        end else begin
+                            score[15:12] <= new_digit;
+                            carry = 0;
+                        end
+                        
+                        // Ten-thousands digit: score[19:16]
+                        digit_value = (points_remaining % 10) + carry;
+                        points_remaining = points_remaining / 10;
+                        new_digit = score[19:16] + digit_value;
+                        if (new_digit >= 10) begin
+                            score[19:16] <= new_digit - 10;
+                            carry = 1;
+                        end else begin
+                            score[19:16] <= new_digit;
+                            carry = 0;
+                        end
+                        
+                        // Hundred-thousands and beyond (carry propagation)
+                        if (carry) begin
+                            if (score[23:20] == 9) begin
+                                score[23:20] <= 0;
+                                if (score[27:24] == 9) begin
+                                    score[27:24] <= 0;
+                                    score[31:28] <= score[31:28] + 1;
+                                end else begin
+                                    score[27:24] <= score[27:24] + 1;
+                                end
+                            end else begin
+                                score[23:20] <= score[23:20] + 1;
+                            end
+                        end
                     end
                 end
             end
@@ -379,6 +493,8 @@ module game_control (
                 t_hold.tetromino.data <= '0;
                 hold_empty <= 1;
                 hold_used <= 0;
+                total_lines_cleared <= 0;
+                consecutive_clears <= 0;
                 score <= 0;
                 game_over <= 0;
             end
