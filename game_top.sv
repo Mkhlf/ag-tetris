@@ -295,12 +295,15 @@ module game_top(
 
     // Drawing Logic (Raw)
     logic [3:0] vga_r_raw, vga_g_raw, vga_b_raw;
+    logic hsync_pipelined, vsync_pipelined;
 
     draw_tetris draw_inst (
         .clk(pix_clk),
         .curr_x(curr_x_raw),
         .curr_y(curr_y_raw),
         .active_area(active_area_raw),
+        .hsync_in(hsync_raw),
+        .vsync_in(vsync_raw),
         .display(display_field),
         .score(score),
         .game_over(game_over),
@@ -310,23 +313,25 @@ module game_top(
         .current_level(current_level),
         .ghost_y(ghost_y),
         .t_curr(t_curr),
-        .t_curr(t_curr),
         .total_lines_cleared(total_lines_cleared), // NEW
         .sprite_addr_x(sprite_addr_x),
         .sprite_addr_y(sprite_addr_y),
         .sprite_pixel(sprite_pixel),
         .vga_r(vga_r_raw),
         .vga_g(vga_g_raw),
-        .vga_b(vga_b_raw)
+        .vga_b(vga_b_raw),
+        .hsync_out(hsync_pipelined),
+        .vsync_out(vsync_pipelined)
     );
 
-    // Output Pipeline (Fix Ghosting)
+    // Output Pipeline (Final Stage)
+    // We keep this stage for clean output timing, effectively making it a 4-stage pipeline.
     always_ff @(posedge pix_clk) begin
         VGA_R <= vga_r_raw;
         VGA_G <= vga_g_raw;
         VGA_B <= vga_b_raw;
-        VGA_HS <= hsync_raw;
-        VGA_VS <= vsync_raw;
+        VGA_HS <= hsync_pipelined;
+        VGA_VS <= vsync_pipelined;
     end
 
     // ========================================================================

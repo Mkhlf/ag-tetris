@@ -5,6 +5,8 @@ module draw_tetris(
     input  wire logic [10:0] curr_x,
     input  wire logic [9:0]  curr_y,
     input  wire logic active_area,
+    input  wire logic hsync_in,
+    input  wire logic vsync_in,
     
     // New Interface: Just the display field
     input   field_t     display,
@@ -27,7 +29,9 @@ module draw_tetris(
     // VGA Output
     output logic [3:0]     vga_r,
     output logic [3:0]     vga_g,
-    output logic [3:0]     vga_b
+    output logic [3:0]     vga_b,
+    output logic           hsync_out,
+    output logic           vsync_out
     );
 
     // Constants
@@ -63,56 +67,136 @@ module draw_tetris(
         color_map[7] = 12'hFA0; // Z - Orange
     end
 
+    // ======================================================================================
+    // PIPELINE STAGE 1: Coordinate Calculation & Region Detection
+    // ======================================================================================
+    
+    // Stage 1 Registers
+    logic s1_active_area;
+    logic s1_hsync, s1_vsync;
+    logic [10:0] s1_curr_x;
+    logic [9:0]  s1_curr_y;
+    
+    // Regions
+    logic s1_is_grid;
+    logic s1_is_border;
+    logic s1_is_next;
+    logic s1_is_hold;
+    logic s1_is_score;
+    logic s1_is_level;
+    logic s1_is_heartbeat;
+    
     // Grid Coordinates
-    logic signed [11:0] rel_x, rel_y;
-    logic signed [11:0] grid_col, grid_row;
-    logic [4:0] block_pixel_x, block_pixel_y;
+    logic signed [11:0] s1_rel_x, s1_rel_y;
+    logic signed [11:0] s1_grid_col, s1_grid_row;
+    logic [4:0] s1_block_pixel_x, s1_block_pixel_y;
     
-    assign rel_x = curr_x - GRID_X_START;
-    assign rel_y = curr_y - GRID_Y_START;
+    // Sidebar relative coords
+    logic [10:0] s1_next_rel_x, s1_hold_rel_x;
+    logic [9:0]  s1_next_rel_y, s1_hold_rel_y;
     
-    assign grid_col = rel_x / BLOCK_SIZE;
-    assign grid_row = rel_y / BLOCK_SIZE;
-    
-    assign block_pixel_x = rel_x % BLOCK_SIZE;
-    assign block_pixel_y = rel_y % BLOCK_SIZE;
+    always_ff @(posedge clk) begin
+        // Pass-through control signals
+        s1_active_area <= active_area;
+        s1_hsync <= hsync_in;
+        s1_vsync <= vsync_in;
+        s1_curr_x <= curr_x;
+        s1_curr_y <= curr_y;
+        
+        // Calculate Relative Coordinates
+        s1_rel_x <= curr_x - GRID_X_START;
+        s1_rel_y <= curr_y - GRID_Y_START;
+        
+        // Calculate Grid Indices (Combinational logic moved to register input)
+        // Note: Division by constant power of 2 (32) is just bit slicing
+        s1_grid_col <= (curr_x - GRID_X_START) / BLOCK_SIZE;
+        s1_grid_row <= (curr_y - GRID_Y_START) / BLOCK_SIZE;
+        s1_block_pixel_x <= (curr_x - GRID_X_START) % BLOCK_SIZE;
+        s1_block_pixel_y <= (curr_y - GRID_Y_START) % BLOCK_SIZE;
+        
+        // Region Detection
+        s1_is_grid <= (curr_x >= GRID_X_START && curr_x < GRID_X_START + GRID_W &&
+                       curr_y >= GRID_Y_START && curr_y < GRID_Y_START + GRID_H);
+                       
+        s1_is_border <= (curr_x >= GRID_X_START - 4 && curr_x < GRID_X_START + GRID_W + 4 &&
+                         curr_y >= GRID_Y_START - 4 && curr_y < GRID_Y_START + GRID_H + 4) &&
+                        !(curr_x >= GRID_X_START && curr_x < GRID_X_START + GRID_W &&
+                          curr_y >= GRID_Y_START && curr_y < GRID_Y_START + GRID_H);
 
-    // Internal variables for drawing
-    logic signed [31:0] r, c;
-    logic [3:0] cell_color_idx;
-    logic [3:0] intensity;
+        s1_is_next <= (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 150 &&
+                       curr_y >= NEXT_Y_START && curr_y < NEXT_Y_START + 150);
+                       
+        s1_is_hold <= (curr_x >= HOLD_X_START && curr_x < HOLD_X_START + 150 &&
+                       curr_y >= HOLD_Y_START && curr_y < HOLD_Y_START + 150);
+                       
+        s1_is_score <= (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 200 &&
+                        curr_y >= SCORE_Y_START && curr_y < SCORE_Y_START + 100);
+                        
+        s1_is_level <= (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 200 &&
+                        curr_y >= LEVEL_Y_START && curr_y < LEVEL_Y_START + 100);
+                        
+        s1_is_heartbeat <= (curr_x >= GRID_X_START + GRID_W - 10 && curr_x < GRID_X_START + GRID_W &&
+                            curr_y >= GRID_Y_START + GRID_H - 10 && curr_y < GRID_Y_START + GRID_H);
+                            
+        // Relative coords for sidebars
+        s1_next_rel_x <= curr_x - SIDE_X_START;
+        s1_next_rel_y <= curr_y - NEXT_Y_START;
+        s1_hold_rel_x <= curr_x - HOLD_X_START;
+        s1_hold_rel_y <= curr_y - HOLD_Y_START;
+    end
+
+    // ======================================================================================
+    // PIPELINE STAGE 2: Data Access & Logic
+    // ======================================================================================
     
-    // Next piece rendering variables
-    logic [10:0] nx;
-    logic [9:0] ny;
-    logic [2:0] nr, nc;
+    // Stage 2 Registers
+    logic s2_active_area;
+    logic s2_hsync, s2_vsync;
     
-    // Hold piece rendering variables
-    logic [10:0] hx;
-    logic [9:0] hy;
-    logic [2:0] hr, hc;
+    // Visual Data
+    logic [3:0] s2_cell_color_idx;
+    logic [3:0] s2_intensity;
+    logic s2_is_border;
+    logic s2_is_grid;
+    logic s2_is_ghost;
     
-    // Level bar width (moved to module scope for synthesis)
-    logic [31:0] level_bar_width;
+    // Text/UI Pixels
+    logic s2_score_pixel;
+    logic s2_level_text_pixel;
+    logic s2_level_bar_pixel;
+    logic s2_level_bar_border; // NEW: Border for level bar
+    logic [3:0] s2_level_bar_color_idx; // 0=Green, 1=Yellow, 2=Red
+    logic s2_heartbeat_pixel;
     
-    // Score Number Rendering
+    // Headers
+    logic s2_next_header;
+    logic s2_hold_header;
+    logic s2_score_header;
+    logic s2_level_header;
+    logic s2_hold_used_header; // For grey header
+    
+    // Helper signals for Stage 2 logic
     logic score_pixel_on;
+    logic level_text_pixel_on;
+    
+    // Text Generation Logic (Combinational, fed by S1)
+    // ------------------------------------------------
+    
+    // Score Number
     draw_number score_draw (
-        .curr_x(curr_x),
-        .curr_y(curr_y),
+        .curr_x(s1_curr_x),
+        .curr_y(s1_curr_y),
         .pos_x(SIDE_X_START),
-        .pos_y(SCORE_Y_START + 40), // Below label
+        .pos_y(SCORE_Y_START + 40),
         .number(score),
         .pixel_on(score_pixel_on)
     );
     
-    // Level text rendering ("Level: X")
-    logic level_text_pixel_on;
+    // Level Text
     logic [7:0] level_text_chars [0:15];
     logic [3:0] level_text_len;
     
     always_comb begin
-        // "Level: " = 7 characters
         level_text_chars[0] = 8'h4C; // L
         level_text_chars[1] = 8'h45; // E
         level_text_chars[2] = 8'h56; // V
@@ -120,278 +204,321 @@ module draw_tetris(
         level_text_chars[4] = 8'h4C; // L
         level_text_chars[5] = 8'h3A; // :
         level_text_chars[6] = 8'h20; // Space
-
-        // Initialize remaining to spaces BEFORE conditional assignment
+        
         level_text_chars[8] = 8'h20; level_text_chars[9] = 8'h20;
         level_text_chars[10] = 8'h20; level_text_chars[11] = 8'h20;
         level_text_chars[12] = 8'h20; level_text_chars[13] = 8'h20;
         level_text_chars[14] = 8'h20; level_text_chars[15] = 8'h20;
         
-        // Convert level number to ASCII
         if (current_level < 10) begin
-            level_text_chars[7] = 8'h30 + current_level; // '0' + level
+            level_text_chars[7] = 8'h30 + current_level;
             level_text_len = 8;
         end else begin
-            // For levels 10-15, show as hex or two digits
-            level_text_chars[7] = 8'h31; // '1'
-            level_text_chars[8] = 8'h30 + (current_level - 10); // '0' + (level - 10)
+            level_text_chars[7] = 8'h31;
+            level_text_chars[8] = 8'h30 + (current_level - 10);
             level_text_len = 9;
         end
-        
-        // Fill rest with spaces
-        // for (int i = level_text_len; i < 16; i++) begin
-        //     level_text_chars[i] = 8'h20; // Space
-        // end
-
     end
     
     draw_string_line level_text_draw (
-        .curr_x(curr_x),
-        .curr_y(curr_y),
+        .curr_x(s1_curr_x),
+        .curr_y(s1_curr_y),
         .pos_x(SIDE_X_START),
         .pos_y(LEVEL_Y_START),
         .str_chars(level_text_chars),
         .str_len(level_text_len),
-        .scale(2'd2), // Scale up level text
+        .scale(2'd2),
         .pixel_on(level_text_pixel_on)
     );
 
-    // Output Logic
-    always_comb begin
-        vga_r = 0; vga_g = 0; vga_b = 0;
-        sprite_addr_x = 0; sprite_addr_y = 0;
-        cell_color_idx = 0;
-        
-        if (active_area) begin
-            // 1. Draw Grid Border & Field
-            if (curr_x >= GRID_X_START - 4 && curr_x < GRID_X_START + GRID_W + 4 &&
-                curr_y >= GRID_Y_START - 4 && curr_y < GRID_Y_START + GRID_H + 4) begin
-                
-                if (curr_x < GRID_X_START || curr_x >= GRID_X_START + GRID_W ||
-                    curr_y < GRID_Y_START || curr_y >= GRID_Y_START + GRID_H) begin
-                    // Border
-                    vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'hF;
-                end else begin
-                    // Inside Grid
-                    cell_color_idx = 0;
-                    
-                    // Grid Lines (Dark Grey)
-                    if (block_pixel_x == 0 || block_pixel_x == 31 || 
-                        block_pixel_y == 0 || block_pixel_y == 31) begin
-                        vga_r = 4'h2; vga_g = 4'h2; vga_b = 4'h2;
-                    end
-                    
-                    // Check Grid Bounds
-                    if (grid_col >= 0 && grid_col < `FIELD_HORIZONTAL &&
-                        grid_row >= 0 && grid_row < `FIELD_VERTICAL_DISPLAY) begin
-                        
-                        // Fix: Offset by 2 to show the visible board (Rows 2 to 21)
-                        // Rows 0 and 1 are the hidden spawn area.
-                        if (display.data[grid_row + 2][grid_col].data != `TETROMINO_EMPTY) begin
-                            cell_color_idx = display.data[grid_row + 2][grid_col].data + 1;
-                        end
-                        
-                        // Ghost Piece Rendering (Only if cell is empty and game not over)
-                        if (cell_color_idx == 0 && !game_over) begin
-                            // Calculate relative position to ghost
-                            // grid_row + 2 is the actual field row index
-                            if ((grid_row + 2) >= ghost_y && (grid_row + 2) < ghost_y + 4 &&
-                                grid_col >= t_curr.coordinate.x && grid_col < t_curr.coordinate.x + 4) begin
-                                
-                                if (t_curr.tetromino.data[t_curr.rotation][grid_row + 2 - ghost_y][grid_col - t_curr.coordinate.x]) begin
-                                    // Draw Ghost (Grey Hollow or Solid)
-                                    // Let's do a medium grey
-                                    vga_r = 4'h4; vga_g = 4'h4; vga_b = 4'h4;
-                                    
-                                    // Optional: Sprite texture for ghost?
-                                    // For now, just solid color is fine, or maybe use the sprite logic with grey color?
-                                    // Let's use sprite logic to make it look like a "ghost block"
-                                    sprite_addr_x = block_pixel_x[4:1];
-                                    sprite_addr_y = block_pixel_y[4:1];
-                                    intensity = sprite_pixel[7:4];
-                                    
-                                    if (intensity != 4'hF) begin
-                                        vga_r = vga_r >> 1;
-                                        vga_g = vga_g >> 1;
-                                        vga_b = vga_b >> 1;
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    
-                    // Render Block
-                    if (cell_color_idx != 0) begin
-                        sprite_addr_x = block_pixel_x[4:1];
-                        sprite_addr_y = block_pixel_y[4:1];
-                        intensity = sprite_pixel[7:4];
-                        
-                        if (game_over) begin
-                            // Grey Blocks for Game Over
-                            vga_r = 4'h6;
-                            vga_g = 4'h6;
-                            vga_b = 4'h6;
-                        end else begin
-                            vga_r = color_map[cell_color_idx][11:8];
-                            vga_g = color_map[cell_color_idx][7:4];
-                            vga_b = color_map[cell_color_idx][3:0];
-                        end
-                        
-                        if (intensity != 4'hF) begin
-                            vga_r = vga_r >> 1;
-                            vga_g = vga_g >> 1;
-                            vga_b = vga_b >> 1;
-                        end
-                    end
-                end
-            end
-            
-            // 2. Draw Next Piece (Top Right)
-            else if (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 150 &&
-                     curr_y >= NEXT_Y_START && curr_y < NEXT_Y_START + 150) begin
-                
-                // Label "NEXT"
-                if (curr_y < NEXT_Y_START + 20) begin
-                    vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'hF; // White Header
-                end else begin
-                    // Draw Piece
-                    nx = curr_x - SIDE_X_START - 20;
-                    ny = curr_y - NEXT_Y_START - 40;
-                    
-                    nr = ny / BLOCK_SIZE;
-                    nc = nx / BLOCK_SIZE;
-                    
-                    if (nx >= 0 && ny >= 0 && nr < 4 && nc < 4) begin
-                        if (t_next.tetromino.data[0][nr][nc]) begin
-                            cell_color_idx = t_next.idx.data + 1;
-                            
-                            sprite_addr_x = (nx % BLOCK_SIZE) >> 1;
-                            sprite_addr_y = (ny % BLOCK_SIZE) >> 1;
-                            intensity = sprite_pixel[7:4];
-                            
-                            vga_r = color_map[cell_color_idx][11:8];
-                            vga_g = color_map[cell_color_idx][7:4];
-                            vga_b = color_map[cell_color_idx][3:0];
-                            
-                            if (intensity != 4'hF) begin
-                                vga_r = vga_r >> 1;
-                                vga_g = vga_g >> 1;
-                                vga_b = vga_b >> 1;
-                            end
-                        end
-                    end
-                end
-            end
-            
-            // 3. Draw Hold Piece (Top Left)
-            else if (curr_x >= HOLD_X_START && curr_x < HOLD_X_START + 150 &&
-                     curr_y >= HOLD_Y_START && curr_y < HOLD_Y_START + 150) begin
-                
-                // Label "HOLD"
-                if (curr_y < HOLD_Y_START + 20) begin
-                    // Header color: Cyan if available, Grey if used
-                    if (hold_used) begin
-                        vga_r = 4'h6; vga_g = 4'h6; vga_b = 4'h6; // Grey Header (used)
-                    end else begin
-                        vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'hF; // Cyan Header (available)
-                    end
-                end else begin
-                    // Draw Held Piece (if not empty)
-                    if (t_hold.idx.data != `TETROMINO_EMPTY) begin
-                        hx = curr_x - HOLD_X_START - 20;
-                        hy = curr_y - HOLD_Y_START - 40;
-                        
-                        hr = hy / BLOCK_SIZE;
-                        hc = hx / BLOCK_SIZE;
-                        
-                        if (hx >= 0 && hy >= 0 && hr < 4 && hc < 4) begin
-                            if (t_hold.tetromino.data[0][hr][hc]) begin
-                                cell_color_idx = t_hold.idx.data + 1;
-                                
-                                sprite_addr_x = (hx % BLOCK_SIZE) >> 1;
-                                sprite_addr_y = (hy % BLOCK_SIZE) >> 1;
-                                intensity = sprite_pixel[7:4];
-                                
-                                // Grey out if hold was already used this piece
-                                if (hold_used) begin
-                                    vga_r = 4'h5;
-                                    vga_g = 4'h5;
-                                    vga_b = 4'h5;
-                                end else begin
-                                    vga_r = color_map[cell_color_idx][11:8];
-                                    vga_g = color_map[cell_color_idx][7:4];
-                                    vga_b = color_map[cell_color_idx][3:0];
-                                end
-                                
-                                if (intensity != 4'hF) begin
-                                    vga_r = vga_r >> 1;
-                                    vga_g = vga_g >> 1;
-                                    vga_b = vga_b >> 1;
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-            
-            // 4. Draw Score (Below Next)
-            else if (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 200 &&
-                     curr_y >= SCORE_Y_START && curr_y < SCORE_Y_START + 100) begin
-                 
-                 // Label "SCORE"
-                 if (curr_y < SCORE_Y_START + 20) begin
-                     vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'h0; // Yellow Header
-                 end else begin
-                     // Draw Number
-                     if (score_pixel_on) begin
-                         vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'hF;
-                     end
-                 end
-            end
-            
-            // 5. Draw Level (Below Message)
-            else if (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 200 &&
-                     curr_y >= LEVEL_Y_START && curr_y < LEVEL_Y_START + 100) begin
-                 
-                 // Draw "Level: X" text
-                 if (curr_y < LEVEL_Y_START + 20) begin
-                     if (level_text_pixel_on) begin
-                         vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'hF; // Cyan text
-                     end
-                  end else begin
-                      // Draw Level Bar (Progress to next level)
-                      // Each level is 10 lines. Bar width 200px.
-                      // Width = (lines % 10) * 20
-                      level_bar_width = (total_lines_cleared % 10) * 20; 
-                          
-                      if (curr_x < SIDE_X_START + level_bar_width &&
-                             curr_y >= LEVEL_Y_START + 40 && curr_y < LEVEL_Y_START + 60) begin
-                             // Gradient color based on level
-                             if (current_level < 5) begin
-                                 vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'h0; // Green (Easy)
-                             end else if (current_level < 10) begin
-                                 vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'h0; // Yellow (Medium)
-                             end else begin
-                                 vga_r = 4'hF; vga_g = 4'h0; vga_b = 4'h0; // Red (Hard)
-                             end
-                         end
-                    //  end
-                 end
-            end
-            // 6. Heartbeat (Bottom Right of Grid) to indicate that we can continue the game once its is over 
-            if (curr_x >= GRID_X_START + GRID_W - 10 && curr_x < GRID_X_START + GRID_W &&
-                curr_y >= GRID_Y_START + GRID_H - 10 && curr_y < GRID_Y_START + GRID_H) begin
-                 if (heartbeat_cnt[25] && game_over) begin
-                     vga_r = 4'hF; vga_g = 4'hF; vga_b = 4'hF;
-                 end
-            end
-        end
-    end
-    
     // Heartbeat Counter
     logic [25:0] heartbeat_cnt;
     always_ff @(posedge clk) begin
         heartbeat_cnt <= heartbeat_cnt + 1;
+    end
+
+    // Stage 2 Logic Block
+    always_ff @(posedge clk) begin
+        s2_active_area <= s1_active_area;
+        s2_hsync <= s1_hsync;
+        s2_vsync <= s1_vsync;
+        
+        s2_is_border <= s1_is_border;
+        s2_is_grid <= s1_is_grid;
+        
+        // Defaults
+        s2_cell_color_idx <= 0;
+        s2_intensity <= 4'hF;
+        s2_is_ghost <= 0;
+        
+        sprite_addr_x <= 0;
+        sprite_addr_y <= 0;
+        
+        // 1. Grid Logic
+        if (s1_is_grid) begin
+            // Grid Lines
+            if (s1_block_pixel_x == 0 || s1_block_pixel_x == 31 || 
+                s1_block_pixel_y == 0 || s1_block_pixel_y == 31) begin
+                // Special code for grid lines? Or just handle in color map?
+                // Let's use a reserved index or handle in Stage 3.
+                // For now, let's say index 8 is grid line (we need to expand color map)
+                // Or just set a flag.
+            end
+            
+            // Check Grid Bounds & Data
+            if (s1_grid_col >= 0 && s1_grid_col < `FIELD_HORIZONTAL &&
+                s1_grid_row >= 0 && s1_grid_row < `FIELD_VERTICAL_DISPLAY) begin
+                
+                // Main Block
+                if (display.data[s1_grid_row + 2][s1_grid_col].data != `TETROMINO_EMPTY) begin
+                    s2_cell_color_idx <= display.data[s1_grid_row + 2][s1_grid_col].data + 1;
+                    sprite_addr_x <= s1_block_pixel_x[4:1];
+                    sprite_addr_y <= s1_block_pixel_y[4:1];
+                end
+                // Ghost Piece
+                else if (!game_over) begin
+                    if ((s1_grid_row + 2) >= ghost_y && (s1_grid_row + 2) < ghost_y + 4 &&
+                        s1_grid_col >= t_curr.coordinate.x && s1_grid_col < t_curr.coordinate.x + 4) begin
+                        
+                        if (t_curr.tetromino.data[t_curr.rotation][s1_grid_row + 2 - ghost_y][s1_grid_col - t_curr.coordinate.x]) begin
+                            s2_is_ghost <= 1;
+                            sprite_addr_x <= s1_block_pixel_x[4:1];
+                            sprite_addr_y <= s1_block_pixel_y[4:1];
+                        end
+                    end
+                end
+            end
+        end
+        
+        // 2. Next Piece Logic
+        else if (s1_is_next) begin
+            if (s1_next_rel_y < 20) begin
+                s2_next_header <= 1;
+            end else begin
+                s2_next_header <= 0;
+                // Draw Piece
+                logic [10:0] nx = s1_next_rel_x - 20;
+                logic [9:0] ny = s1_next_rel_y - 40;
+                logic [2:0] nr = ny / BLOCK_SIZE;
+                logic [2:0] nc = nx / BLOCK_SIZE;
+                
+                if (nx >= 0 && ny >= 0 && nr < 4 && nc < 4) begin
+                    if (t_next.tetromino.data[0][nr][nc]) begin
+                        s2_cell_color_idx <= t_next.idx.data + 1;
+                        sprite_addr_x <= (nx % BLOCK_SIZE) >> 1;
+                        sprite_addr_y <= (ny % BLOCK_SIZE) >> 1;
+                    end
+                end
+            end
+        end
+        
+        // 3. Hold Piece Logic
+        else if (s1_is_hold) begin
+            if (s1_hold_rel_y < 20) begin
+                s2_hold_header <= 1;
+                s2_hold_used_header <= hold_used;
+            end else begin
+                s2_hold_header <= 0;
+                if (t_hold.idx.data != `TETROMINO_EMPTY) begin
+                    logic [10:0] hx = s1_hold_rel_x - 20;
+                    logic [9:0] hy = s1_hold_rel_y - 40;
+                    logic [2:0] hr = hy / BLOCK_SIZE;
+                    logic [2:0] hc = hx / BLOCK_SIZE;
+                    
+                    if (hx >= 0 && hy >= 0 && hr < 4 && hc < 4) begin
+                        if (t_hold.tetromino.data[0][hr][hc]) begin
+                            s2_cell_color_idx <= t_hold.idx.data + 1;
+                            sprite_addr_x <= (hx % BLOCK_SIZE) >> 1;
+                            sprite_addr_y <= (hy % BLOCK_SIZE) >> 1;
+                            // Grey out if used handled in Stage 3
+                        end
+                    end
+                end
+            end
+        end
+        
+        // 4. Score Logic
+        else if (s1_is_score) begin
+             if (s1_curr_y < SCORE_Y_START + 20) s2_score_header <= 1;
+             else s2_score_header <= 0;
+             s2_score_pixel <= score_pixel_on;
+        end
+        
+        // 5. Level Logic
+        else if (s1_is_level) begin
+            if (s1_curr_y < LEVEL_Y_START + 20) s2_level_header <= 1;
+            else s2_level_header <= 0;
+            
+            s2_level_text_pixel <= level_text_pixel_on;
+            
+            // Level Bar
+            logic [31:0] level_bar_width = (total_lines_cleared % 10) * 20;
+            
+            // Border Logic (2px wide)
+            // Outer box: SIDE_X_START to SIDE_X_START + 200, LEVEL_Y_START + 40 to LEVEL_Y_START + 60
+            if (s1_curr_x >= SIDE_X_START - 2 && s1_curr_x < SIDE_X_START + 202 &&
+                s1_curr_y >= LEVEL_Y_START + 38 && s1_curr_y < LEVEL_Y_START + 62) begin
+                
+                if (s1_curr_x < SIDE_X_START || s1_curr_x >= SIDE_X_START + 200 ||
+                    s1_curr_y < LEVEL_Y_START + 40 || s1_curr_y >= LEVEL_Y_START + 60) begin
+                    s2_level_bar_border <= 1;
+                end else begin
+                    s2_level_bar_border <= 0;
+                end
+            end else begin
+                s2_level_bar_border <= 0;
+            end
+
+            if (s1_curr_x < SIDE_X_START + level_bar_width &&
+                s1_curr_y >= LEVEL_Y_START + 40 && s1_curr_y < LEVEL_Y_START + 60) begin
+                s2_level_bar_pixel <= 1;
+                if (current_level < 5) s2_level_bar_color_idx <= 0;
+                else if (current_level < 10) s2_level_bar_color_idx <= 1;
+                else s2_level_bar_color_idx <= 2;
+            end else begin
+                s2_level_bar_pixel <= 0;
+            end
+        end
+        
+        // 6. Heartbeat
+        s2_heartbeat_pixel <= (s1_is_heartbeat && heartbeat_cnt[25] && game_over);
+    end
+
+    // ======================================================================================
+    // PIPELINE STAGE 3: Color Mapping & Output
+    // ======================================================================================
+    
+    always_ff @(posedge clk) begin
+        hsync_out <= s2_hsync;
+        vsync_out <= s2_vsync;
+        
+        vga_r <= 0; vga_g <= 0; vga_b <= 0;
+        
+        if (s2_active_area) begin
+            // 1. Border
+            if (s2_is_border) begin
+                vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'hF;
+            end
+            
+            // 2. Grid Content
+            else if (s2_is_grid) begin
+                // ... (Grid Logic)
+                if (s2_cell_color_idx != 0) begin
+                    logic [3:0] r, g, b;
+                    logic [3:0] inten = sprite_pixel[7:4];
+                    
+                    if (game_over) begin
+                        r = 4'h6; g = 4'h6; b = 4'h6;
+                    end else begin
+                        r = color_map[s2_cell_color_idx][11:8];
+                        g = color_map[s2_cell_color_idx][7:4];
+                        b = color_map[s2_cell_color_idx][3:0];
+                    end
+                    
+                    if (inten != 4'hF) begin
+                        vga_r <= r >> 1;
+                        vga_g <= g >> 1;
+                        vga_b <= b >> 1;
+                    end else begin
+                        vga_r <= r;
+                        vga_g <= g;
+                        vga_b <= b;
+                    end
+                end
+                else if (s2_is_ghost) begin
+                    logic [3:0] inten = sprite_pixel[7:4];
+                    logic [3:0] r = 4'h4;
+                    logic [3:0] g = 4'h4;
+                    logic [3:0] b = 4'h4;
+                    
+                    if (inten != 4'hF) begin
+                        vga_r <= r >> 1;
+                        vga_g <= g >> 1;
+                        vga_b <= b >> 1;
+                    end else begin
+                        vga_r <= r;
+                        vga_g <= g;
+                        vga_b <= b;
+                    end
+                end
+            end
+            
+            // 3. Next Piece
+            else if (s2_next_header) begin
+                vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'hF;
+            end
+            else if (s2_cell_color_idx != 0 && !s2_is_grid && !s2_is_hold) begin // Next piece block
+                 // Reuse block logic
+                 logic [3:0] r, g, b;
+                 logic [3:0] inten = sprite_pixel[7:4];
+                 r = color_map[s2_cell_color_idx][11:8];
+                 g = color_map[s2_cell_color_idx][7:4];
+                 b = color_map[s2_cell_color_idx][3:0];
+                 
+                 if (inten != 4'hF) begin
+                    vga_r <= r >> 1; vga_g <= g >> 1; vga_b <= b >> 1;
+                 end else begin
+                    vga_r <= r; vga_g <= g; vga_b <= b;
+                 end
+            end
+            
+            // 4. Hold Piece
+            else if (s2_hold_header) begin
+                if (s2_hold_used_header) begin
+                    vga_r <= 4'h6; vga_g <= 4'h6; vga_b <= 4'h6;
+                end else begin
+                    vga_r <= 4'h0; vga_g <= 4'hF; vga_b <= 4'hF;
+                end
+            end
+            else if (s2_is_hold && s2_cell_color_idx != 0) begin
+                 logic [3:0] r, g, b;
+                 logic [3:0] inten = sprite_pixel[7:4];
+                 
+                 if (hold_used) begin 
+                    r = 4'h5; g = 4'h5; b = 4'h5;
+                 end else begin
+                    r = color_map[s2_cell_color_idx][11:8];
+                    g = color_map[s2_cell_color_idx][7:4];
+                    b = color_map[s2_cell_color_idx][3:0];
+                 end
+                 
+                 if (inten != 4'hF) begin
+                    vga_r <= r >> 1; vga_g <= g >> 1; vga_b <= b >> 1;
+                 end else begin
+                    vga_r <= r; vga_g <= g; vga_b <= b;
+                 end
+            end
+            
+            // 5. Score
+            else if (s2_score_header) begin
+                vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'h0;
+            end
+            else if (s2_score_pixel) begin
+                vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'hF;
+            end
+            
+            // 6. Level
+            else if (s2_level_header) begin
+                if (s2_level_text_pixel) begin
+                    vga_r <= 4'h0; vga_g <= 4'hF; vga_b <= 4'hF;
+                end
+            end
+            else if (s2_level_bar_border) begin
+                vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'hF; // White Border
+            end
+            else if (s2_level_bar_pixel) begin
+                case (s2_level_bar_color_idx)
+                    0: begin vga_r <= 4'h0; vga_g <= 4'hF; vga_b <= 4'h0; end
+                    1: begin vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'h0; end
+                    2: begin vga_r <= 4'hF; vga_g <= 4'h0; vga_b <= 4'h0; end
+                endcase
+            end
+            
+            // 7. Heartbeat
+            else if (s2_heartbeat_pixel) begin
+                vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'hF;
+            end
+        end
     end
 
 endmodule
