@@ -9,6 +9,7 @@ module tb_ps2_keyboard;
     logic ps2_data;
     logic [7:0] current_scan_code;
     logic current_make_break;
+    logic key_event_valid;
 
     ps2_keyboard uut (
         .clk(clk),
@@ -16,10 +17,14 @@ module tb_ps2_keyboard;
         .ps2_clk(ps2_clk),
         .ps2_data(ps2_data),
         .current_scan_code(current_scan_code),
-        .current_make_break(current_make_break)
+        .current_make_break(current_make_break),
+        .key_event_valid(key_event_valid)
     );
 
     always #5 clk = ~clk;
+    
+    int pass_count = 0;
+    int fail_count = 0;
 
     task send_ps2_byte(input [7:0] data);
         integer i;
@@ -52,6 +57,22 @@ module tb_ps2_keyboard;
             #50000; // Wait between bytes
         end
     endtask
+    
+    // Wait for key_event_valid pulse (now extended to 4 cycles)
+    task wait_for_event;
+        begin
+            // Wait up to 10000 cycles for event to start
+            repeat(10000) begin
+                @(posedge clk);
+                if (key_event_valid) begin
+                    // Event detected - wait for it to finish (4+ cycles)
+                    repeat(10) @(posedge clk);
+                    return;
+                end
+            end
+            $display("WARNING: Timeout waiting for key_event_valid");
+        end
+    endtask
 
     initial begin
         clk = 0;
@@ -62,36 +83,117 @@ module tb_ps2_keyboard;
         #20 rst = 0;
         
         $display("=== ps2_keyboard Testbench ===");
+        $display("Testing PS2 keyboard interface with key_event_valid pulse\n");
         
         #100;
         
         // Test 1: Make Code (Press 'A' - 0x1C)
         $display("Test 1: Press 'A' (0x1C)");
         send_ps2_byte(8'h1C);
-        #1000;
+        wait_for_event();
         
-        if (current_scan_code == 8'h1C && current_make_break == 1)
-            $display("PASS: Key Press Detected (Code: %h, State: Make)", current_scan_code);
-        else
-            $display("FAIL: Expected 0x1C Make, got %h %b", current_scan_code, current_make_break);
+        if (current_scan_code == 8'h1C && current_make_break == 1 && key_event_valid) begin
+            $display("  PASS: Key Press Detected (Code: %h, State: Make)", current_scan_code);
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x1C Make, got %h %b", current_scan_code, current_make_break);
+            fail_count++;
+        end
             
         // Test 2: Break Code (Release 'A' - F0 1C)
         $display("\nTest 2: Release 'A' (F0 1C)");
         send_ps2_byte(8'hF0);
-        #1000;
-        // Intermediate state: F0 received, waiting for next byte. 
-        // Logic might hold previous state or clear.
-        // Our logic: if (new_byte == 8'hF0) -> do nothing (wait).
+        #5000; // F0 prefix should NOT generate event
         
         send_ps2_byte(8'h1C);
-        #1000;
+        wait_for_event();
         
-        if (current_scan_code == 8'h1C && current_make_break == 0)
-            $display("PASS: Key Release Detected (Code: %h, State: Break)", current_scan_code);
-        else
-            $display("FAIL: Expected 0x1C Break, got %h %b", current_scan_code, current_make_break);
+        if (current_scan_code == 8'h1C && current_make_break == 0) begin
+            $display("  PASS: Key Release Detected (Code: %h, State: Break)", current_scan_code);
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x1C Break, got %h %b", current_scan_code, current_make_break);
+            fail_count++;
+        end
         
-        $display("\nSimulation Finished");
+        // Test 3: Extended Key Press (Left Arrow - E0 6B)
+        $display("\nTest 3: Press Left Arrow (E0 6B)");
+        send_ps2_byte(8'hE0);
+        #5000; // E0 prefix should NOT generate event alone
+        
+        send_ps2_byte(8'h6B);
+        wait_for_event();
+        
+        if (current_scan_code == 8'h6B && current_make_break == 1) begin
+            $display("  PASS: Extended Key Press (Left Arrow: %h, Make)", current_scan_code);
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x6B Make, got %h %b", current_scan_code, current_make_break);
+            fail_count++;
+        end
+        
+        // Test 4: Extended Key Release (Left Arrow - E0 F0 6B)
+        $display("\nTest 4: Release Left Arrow (E0 F0 6B)");
+        send_ps2_byte(8'hE0);
+        #5000;
+        send_ps2_byte(8'hF0);
+        #5000;
+        send_ps2_byte(8'h6B);
+        wait_for_event();
+        
+        if (current_scan_code == 8'h6B && current_make_break == 0) begin
+            $display("  PASS: Extended Key Release (Left Arrow: %h, Break)", current_scan_code);
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x6B Break, got %h %b", current_scan_code, current_make_break);
+            fail_count++;
+        end
+        
+        // Test 5: Left Shift Key (Used for Hold) - 0x12
+        $display("\nTest 5: Press Left Shift (0x12) - Hold Key");
+        send_ps2_byte(8'h12);
+        wait_for_event();
+        
+        if (current_scan_code == 8'h12 && current_make_break == 1) begin
+            $display("  PASS: Left Shift Press (Code: %h, State: Make)", current_scan_code);
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x12 Make, got %h %b", current_scan_code, current_make_break);
+            fail_count++;
+        end
+        
+        // Test 6: Space Key (Hard Drop) - 0x29
+        $display("\nTest 6: Press Space (0x29) - Hard Drop");
+        send_ps2_byte(8'h29);
+        wait_for_event();
+        
+        if (current_scan_code == 8'h29 && current_make_break == 1) begin
+            $display("  PASS: Space Press (Code: %h, State: Make)", current_scan_code);
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x29 Make, got %h %b", current_scan_code, current_make_break);
+            fail_count++;
+        end
+        
+        // Test 7: Up Arrow (Rotate) - E0 75
+        $display("\nTest 7: Press Up Arrow (E0 75) - Rotate");
+        send_ps2_byte(8'hE0);
+        #5000;
+        send_ps2_byte(8'h75);
+        wait_for_event();
+        
+        if (current_scan_code == 8'h75 && current_make_break == 1) begin
+            $display("  PASS: Up Arrow Press (Code: %h, State: Make)", current_scan_code);
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x75 Make, got %h %b", current_scan_code, current_make_break);
+            fail_count++;
+        end
+        
+        $display("\n=== Test Summary ===");
+        $display("Passed: %0d", pass_count);
+        $display("Failed: %0d", fail_count);
+        $display("Simulation Finished");
         $finish;
     end
 

@@ -34,15 +34,33 @@ module ps2_keyboard(
     assign prev_byte = keycode[15:8];
     assign prev_prev_byte = keycode[23:16];
 
+    // Extend key_event_valid pulse to ensure CDC captures it
+    // At 50MHz -> 25MHz, we need at least 2 cycles, use 4 for safety
+    logic [2:0] event_pulse_counter;
+    logic event_detected;
+    
     always_ff @(posedge clk) begin
         if (rst) begin
             current_scan_code <= 8'h00;
             current_make_break <= 1'b0;
             key_event_valid <= 1'b0;
             prev_keycode <= 32'h0;
+            event_pulse_counter <= 0;
+            event_detected <= 0;
         end else begin
-            // Default: no event this cycle
-            key_event_valid <= 1'b0;
+            // Extend pulse for CDC: keep high for 4 cycles
+            if (event_detected) begin
+                if (event_pulse_counter < 4) begin
+                    key_event_valid <= 1'b1;
+                    event_pulse_counter <= event_pulse_counter + 1;
+                end else begin
+                    key_event_valid <= 1'b0;
+                    event_detected <= 0;
+                    event_pulse_counter <= 0;
+                end
+            end else begin
+                key_event_valid <= 1'b0;
+            end
             
             // Check if keycode buffer has changed
             if (keycode != prev_keycode) begin
@@ -51,31 +69,35 @@ module ps2_keyboard(
                 // Skip if we just received a prefix byte (E0 or F0)
                 if (new_byte == 8'hE0 || new_byte == 8'hF0) begin
                     // Prefix received, wait for actual scan code
-                    key_event_valid <= 1'b0;
+                    // Don't trigger event
                 end
                 // Extended key release: E0 F0 XX
                 else if (prev_byte == 8'hF0 && prev_prev_byte == 8'hE0) begin
                     current_make_break <= 1'b0;  // Release
                     current_scan_code <= new_byte;
-                    key_event_valid <= 1'b1;
+                    event_detected <= 1;
+                    event_pulse_counter <= 0;
                 end
                 // Normal key release: F0 XX
                 else if (prev_byte == 8'hF0) begin
                     current_make_break <= 1'b0;  // Release
                     current_scan_code <= new_byte;
-                    key_event_valid <= 1'b1;
+                    event_detected <= 1;
+                    event_pulse_counter <= 0;
                 end
                 // Extended key press: E0 XX (but not E0 F0)
                 else if (prev_byte == 8'hE0) begin
                     current_make_break <= 1'b1;  // Press
                     current_scan_code <= new_byte;
-                    key_event_valid <= 1'b1;
+                    event_detected <= 1;
+                    event_pulse_counter <= 0;
                 end
                 // Normal key press: just XX (not E0, not F0, and prev wasn't F0)
                 else begin
                     current_make_break <= 1'b1;  // Press
                     current_scan_code <= new_byte;
-                    key_event_valid <= 1'b1;
+                    event_detected <= 1;
+                    event_pulse_counter <= 0;
                 end
             end
         end

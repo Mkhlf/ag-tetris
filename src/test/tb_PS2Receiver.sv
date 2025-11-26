@@ -6,6 +6,9 @@ module tb_PS2Receiver;
     logic kclk;
     logic kdata;
     logic [31:0] keycodeout;
+    
+    int pass_count = 0;
+    int fail_count = 0;
 
     PS2Receiver uut (
         .clk(clk),
@@ -54,42 +57,150 @@ module tb_PS2Receiver;
         kclk = 1;
         kdata = 1;
         
+        $display("=== PS2Receiver Testbench ===");
+        $display("Testing low-level PS2 protocol reception\n");
+        
         #100;
         
-        $display("=== Test 1: Single Scancode ===");
-        send_ps2_byte(8'h1C); // 'A' key
+        // ================================================================
+        // Test 1: Single Scancode
+        // ================================================================
+        $display("Test 1: Single Scancode (A key - 0x1C)");
+        send_ps2_byte(8'h1C);
         #1000;
-        if (keycodeout[7:0] == 8'h1C)
-            $display("PASS: Received scancode 0x1C");
-        else
-            $display("FAIL: Expected 0x1C, got 0x%h", keycodeout[7:0]);
+        if (keycodeout[7:0] == 8'h1C) begin
+            $display("  PASS: Received scancode 0x1C");
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x1C, got 0x%h", keycodeout[7:0]);
+            fail_count++;
+        end
         
-        $display("\n=== Test 2: Multiple Scancodes ===");
+        // ================================================================
+        // Test 2: Multiple Scancodes (History Buffer)
+        // ================================================================
+        $display("\nTest 2: Multiple Scancodes");
         send_ps2_byte(8'h23); // 'D' key
         #1000;
-        if (keycodeout[7:0] == 8'h23)
-            $display("PASS: Received scancode 0x23");
-        else
-            $display("FAIL: Expected 0x23, got 0x%h", keycodeout[7:0]);
+        if (keycodeout[7:0] == 8'h23 && keycodeout[15:8] == 8'h1C) begin
+            $display("  PASS: History buffer: prev=0x1C, curr=0x23");
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected prev=0x1C curr=0x23, got %h", keycodeout[15:0]);
+            fail_count++;
+        end
             
         send_ps2_byte(8'h2B); // 'F' key
         #1000;
-        if (keycodeout[7:0] == 8'h2B)
-            $display("PASS: Received scancode 0x2B");
-        else
-            $display("FAIL: Expected 0x2B, got 0x%h", keycodeout[7:0]);
+        if (keycodeout[7:0] == 8'h2B) begin
+            $display("  PASS: Received scancode 0x2B");
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x2B, got 0x%h", keycodeout[7:0]);
+            fail_count++;
+        end
         
-        $display("\n=== Test 3: Break Code (F0) ===");
+        // ================================================================
+        // Test 3: Break Code (F0)
+        // ================================================================
+        $display("\nTest 3: Break Code (F0 1C - Release A)");
         send_ps2_byte(8'hF0);
         #1000;
         send_ps2_byte(8'h1C);
         #1000;
-        if (keycodeout[15:8] == 8'hF0 && keycodeout[7:0] == 8'h1C)
-            $display("PASS: Break code received correctly");
-        else
-            $display("FAIL: Break code error. Got: %h", keycodeout[15:0]);
+        if (keycodeout[15:8] == 8'hF0 && keycodeout[7:0] == 8'h1C) begin
+            $display("  PASS: Break code received (F0 1C)");
+            pass_count++;
+        end else begin
+            $display("  FAIL: Break code error. Got: %h", keycodeout[15:0]);
+            fail_count++;
+        end
         
-        $display("\nSimulation Finished");
+        // ================================================================
+        // Test 4: Extended Key (E0 Prefix - Arrow Keys)
+        // ================================================================
+        $display("\nTest 4: Extended Key (E0 6B - Left Arrow)");
+        send_ps2_byte(8'hE0);
+        #1000;
+        send_ps2_byte(8'h6B);
+        #1000;
+        if (keycodeout[15:8] == 8'hE0 && keycodeout[7:0] == 8'h6B) begin
+            $display("  PASS: Extended key received (E0 6B)");
+            pass_count++;
+        end else begin
+            $display("  FAIL: Extended key error. Got: %h", keycodeout[15:0]);
+            fail_count++;
+        end
+        
+        // ================================================================
+        // Test 5: Extended Key Release (E0 F0 XX)
+        // ================================================================
+        $display("\nTest 5: Extended Key Release (E0 F0 6B - Release Left Arrow)");
+        send_ps2_byte(8'hE0);
+        #1000;
+        send_ps2_byte(8'hF0);
+        #1000;
+        send_ps2_byte(8'h6B);
+        #1000;
+        if (keycodeout[23:16] == 8'hE0 && keycodeout[15:8] == 8'hF0 && keycodeout[7:0] == 8'h6B) begin
+            $display("  PASS: Extended release received (E0 F0 6B)");
+            pass_count++;
+        end else begin
+            $display("  FAIL: Extended release error. Got: %h", keycodeout[23:0]);
+            fail_count++;
+        end
+        
+        // ================================================================
+        // Test 6: Space Key (0x29 - Hard Drop)
+        // ================================================================
+        $display("\nTest 6: Space Key (0x29 - Hard Drop)");
+        send_ps2_byte(8'h29);
+        #1000;
+        if (keycodeout[7:0] == 8'h29) begin
+            $display("  PASS: Space key received (0x29)");
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x29, got 0x%h", keycodeout[7:0]);
+            fail_count++;
+        end
+        
+        // ================================================================
+        // Test 7: Left Shift Key (0x12 - Hold)
+        // ================================================================
+        $display("\nTest 7: Left Shift Key (0x12 - Hold)");
+        send_ps2_byte(8'h12);
+        #1000;
+        if (keycodeout[7:0] == 8'h12) begin
+            $display("  PASS: Left Shift key received (0x12)");
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected 0x12, got 0x%h", keycodeout[7:0]);
+            fail_count++;
+        end
+        
+        // ================================================================
+        // Test 8: Up Arrow (E0 75 - Rotate)
+        // ================================================================
+        $display("\nTest 8: Up Arrow (E0 75 - Rotate)");
+        send_ps2_byte(8'hE0);
+        #1000;
+        send_ps2_byte(8'h75);
+        #1000;
+        if (keycodeout[15:8] == 8'hE0 && keycodeout[7:0] == 8'h75) begin
+            $display("  PASS: Up Arrow received (E0 75)");
+            pass_count++;
+        end else begin
+            $display("  FAIL: Expected E0 75, got %h", keycodeout[15:0]);
+            fail_count++;
+        end
+        
+        // ================================================================
+        // Summary
+        // ================================================================
+        $display("\n=== Test Summary ===");
+        $display("Passed: %0d", pass_count);
+        $display("Failed: %0d", fail_count);
+        $display("Simulation Finished");
         $finish;
     end
 

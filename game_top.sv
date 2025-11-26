@@ -15,7 +15,11 @@ module game_top(
     output logic [3:0] VGA_B,
     output logic VGA_HS,
     output logic VGA_VS,
-    output logic [1:0] LED // Debug LEDs
+    output logic [1:0] LED,     // Debug LEDs
+    // 7-Segment Display
+    output logic [6:0] SEG,     // Segment pattern (active low)
+    output logic [7:0] AN,      // Anode select (active low)
+    output logic       DP       // Decimal point (active low)
     );
 
     logic rst;
@@ -101,6 +105,7 @@ module game_top(
     // CDC: Clock Domain Crossing from 50MHz to 25MHz (game_clk)
     // ========================================================================
     // Synchronize key_event_valid pulse to game_clk domain
+    // Note: key_event_valid_50 is now extended to 4 cycles (80ns) to ensure capture
     logic key_event_sync1, key_event_sync2, key_event_sync3;
     logic key_event_pulse;
     
@@ -119,20 +124,29 @@ module game_top(
     // Detect rising edge in game_clk domain
     assign key_event_pulse = key_event_sync2 & ~key_event_sync3;
     
-    // Latch scan_code and make_break when event detected
-    // (These signals are stable when key_event_valid is high)
-    logic [7:0] scan_code;
-    logic make_break;
+    // Synchronize scan_code and make_break (they're stable during extended pulse)
+    logic [7:0] scan_code_sync1, scan_code_sync2;
+    logic make_break_sync1, make_break_sync2;
     
     always_ff @(posedge game_clk) begin
         if (rst) begin
-            scan_code <= 8'h00;
-            make_break <= 1'b0;
-        end else if (key_event_pulse) begin
-            scan_code <= scan_code_50;
-            make_break <= make_break_50;
+            scan_code_sync1 <= 8'h00;
+            scan_code_sync2 <= 8'h00;
+            make_break_sync1 <= 1'b0;
+            make_break_sync2 <= 1'b0;
+        end else begin
+            scan_code_sync1 <= scan_code_50;
+            scan_code_sync2 <= scan_code_sync1;
+            make_break_sync1 <= make_break_50;
+            make_break_sync2 <= make_break_sync1;
         end
     end
+    
+    // For 7-segment display use
+    logic [7:0] scan_code;
+    logic make_break;
+    assign scan_code = scan_code_sync2;
+    assign make_break = make_break_sync2;
     
     // ========================================================================
     // Decode Raw Levels (Held State) - Now in game_clk domain
@@ -144,14 +158,14 @@ module game_top(
             raw_left_kb <= 0; raw_right_kb <= 0; raw_down_kb <= 0;
             raw_rotate_kb <= 0; raw_drop_kb <= 0; raw_hold_kb <= 0;
         end else if (key_event_pulse) begin
-            // Update state based on scan code event
-            case (scan_code)
-                `LEFT_ARROW_C:  raw_left_kb   <= make_break;
-                `RIGHT_ARROW_C: raw_right_kb  <= make_break;
-                `DOWN_ARROW_C:  raw_down_kb   <= make_break;
-                `UP_ARROW_C:    raw_rotate_kb <= make_break;
-                `SPACE_C:       raw_drop_kb   <= make_break;
-                `LSHIFT_C:      raw_hold_kb   <= make_break;
+            // Use synchronized values - they're stable when pulse fires
+            case (scan_code_sync2)
+                `LEFT_ARROW_C:  raw_left_kb   <= make_break_sync2;
+                `RIGHT_ARROW_C: raw_right_kb  <= make_break_sync2;
+                `DOWN_ARROW_C:  raw_down_kb   <= make_break_sync2;
+                `UP_ARROW_C:    raw_rotate_kb <= make_break_sync2;
+                `SPACE_C:       raw_drop_kb   <= make_break_sync2;
+                `LSHIFT_C:      raw_hold_kb   <= make_break_sync2;
                 default: ; // No change for other keys
             endcase
         end
@@ -304,6 +318,25 @@ module game_top(
         VGA_HS <= hsync_raw;
         VGA_VS <= vsync_raw;
     end
+
+    // ========================================================================
+    // 7-Segment Display for Keyboard Input Visualization
+    // ========================================================================
+    seg7_key_display seg7_inst (
+        .clk(CLK100MHZ),
+        .rst(rst),
+        .scan_code(scan_code),
+        .key_valid(key_event_pulse),
+        .key_left(raw_left),
+        .key_right(raw_right),
+        .key_down(raw_down),
+        .key_rotate(raw_rotate),
+        .key_drop(raw_drop),
+        .key_hold(raw_hold),
+        .SEG(SEG),
+        .AN(AN),
+        .DP(DP)
+    );
 
 endmodule
 
