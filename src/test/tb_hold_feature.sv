@@ -95,9 +95,11 @@ module tb_hold_feature;
         key_drop_held = 1;
         @(posedge clk);
         key_drop = 0;
-        repeat(30) @(posedge clk);
+        // Wait longer for HARD_DROP (~20) + CLEAN (~10) + transitions
+        repeat(50) @(posedge clk);
         key_drop_held = 0;
-        wait_settle();
+        // Wait for DROP_LOCKOUT -> GEN -> GEN_WAIT -> IDLE
+        repeat(30) @(posedge clk);
     endtask
 
     initial begin

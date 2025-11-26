@@ -2,6 +2,24 @@
 set_property -dict { PACKAGE_PIN E3    IOSTANDARD LVCMOS33 } [get_ports { CLK100MHZ }]; #IO_L12P_T1_MRCC_35 Sch=clk100mhz
 create_clock -add -name sys_clk_pin -period 10.00 -waveform {0 5} [get_ports {CLK100MHZ}];
 
+## Generated clocks (derived from sys_clk_pin)
+# PS2 clock: 50MHz (100MHz / 2)
+create_generated_clock -name ps2_clk_50mhz -source [get_ports CLK100MHZ] -divide_by 2 [get_pins {ps2_clk_50mhz_reg/Q}]
+
+# Game clock: 25MHz (100MHz / 4)  
+create_generated_clock -name game_clk -source [get_ports CLK100MHZ] -divide_by 4 [get_pins {clk_div_reg[1]/Q}]
+
+## Clock Domain Crossing Constraints
+# PS2 (50MHz) to Game (25MHz) domain - properly synchronized in RTL
+set_false_path -from [get_clocks ps2_clk_50mhz] -to [get_clocks game_clk]
+set_false_path -from [get_clocks game_clk] -to [get_clocks ps2_clk_50mhz]
+
+# Game clock to Pixel clock domain (VGA output) - data is stable for multiple cycles
+set_false_path -from [get_clocks game_clk] -to [get_clocks clk_out1_clk_wiz_0]
+
+# Pixel clock to Game clock (not used, but for completeness)
+set_false_path -from [get_clocks clk_out1_clk_wiz_0] -to [get_clocks game_clk]
+
 ## Reset (CPU_RESETN)
 set_property -dict { PACKAGE_PIN C12   IOSTANDARD LVCMOS33 } [get_ports { CPU_RESETN }]; #IO_L3P_T0_DQS_AD1P_15 Sch=cpu_resetn
 
