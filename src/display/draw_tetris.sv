@@ -157,6 +157,64 @@ module draw_tetris(
         s1a_curr_y <= s1_curr_y;
     end
 
+
+    // Helper signals for Stage 2 logic
+    logic score_pixel_on;
+    logic level_text_pixel_on;
+
+    // Score Number
+    draw_number score_draw (
+        .curr_x(s1a_curr_x),
+        .curr_y(s1a_curr_y),
+        .pos_x(SIDE_X_START),
+        .pos_y(SCORE_Y_START + 40),
+        .number(score),
+        .pixel_on(score_pixel_on)  // ← Outputs this signal
+    );
+
+    // Level Text
+    logic [7:0] level_text_chars [0:15];
+    logic [3:0] level_text_len;
+
+    always_comb begin
+        level_text_chars[0] = 8'h4C; // L
+        level_text_chars[1] = 8'h45; // E
+        level_text_chars[2] = 8'h56; // V
+        level_text_chars[3] = 8'h45; // E
+        level_text_chars[4] = 8'h4C; // L
+        level_text_chars[5] = 8'h3A; // :
+        level_text_chars[6] = 8'h20; // Space
+        
+        level_text_chars[8] = 8'h20; level_text_chars[9] = 8'h20;
+        level_text_chars[10] = 8'h20; level_text_chars[11] = 8'h20;
+        level_text_chars[12] = 8'h20; level_text_chars[13] = 8'h20;
+        level_text_chars[14] = 8'h20; level_text_chars[15] = 8'h20;
+        
+        if (current_level < 10) begin
+            level_text_chars[7] = 8'h30 + current_level;
+            level_text_len = 8;
+        end else begin
+            level_text_chars[7] = 8'h31;
+            level_text_chars[8] = 8'h30 + (current_level - 10);
+            level_text_len = 9;
+        end
+    end
+
+
+    draw_string_line level_text_draw (
+        .curr_x(s1a_curr_x),
+        .curr_y(s1a_curr_y),
+        .pos_x(SIDE_X_START),
+        .pos_y(LEVEL_Y_START),
+        .str_chars(level_text_chars),
+        .str_len(level_text_len),
+        .scale(2'd2),
+        .pixel_on(level_text_pixel_on)  // ← Outputs this signal
+    );
+
+    // 
+
+
     // ======================================================================================
     // PIPELINE STAGE 1.75: Text Rendering Output Registers
     // ======================================================================================
@@ -206,62 +264,6 @@ module draw_tetris(
     logic s2_score_header;
     logic s2_level_header;
     logic s2_hold_used_header;
-    
-    // Helper signals for Stage 2 logic
-    logic score_pixel_on;
-    logic level_text_pixel_on;
-    
-    // Text Generation Logic (Combinational, fed by S1.5)
-    // ------------------------------------------------
-    
-    // Score Number
-    draw_number score_draw (
-        .curr_x(s1a_curr_x),
-        .curr_y(s1a_curr_y),
-        .pos_x(SIDE_X_START),
-        .pos_y(SCORE_Y_START + 40),
-        .number(score),
-        .pixel_on(score_pixel_on)
-    );
-    
-    // Level Text
-    logic [7:0] level_text_chars [0:15];
-    logic [3:0] level_text_len;
-    
-    always_comb begin
-        level_text_chars[0] = 8'h4C; // L
-        level_text_chars[1] = 8'h45; // E
-        level_text_chars[2] = 8'h56; // V
-        level_text_chars[3] = 8'h45; // E
-        level_text_chars[4] = 8'h4C; // L
-        level_text_chars[5] = 8'h3A; // :
-        level_text_chars[6] = 8'h20; // Space
-        
-        level_text_chars[8] = 8'h20; level_text_chars[9] = 8'h20;
-        level_text_chars[10] = 8'h20; level_text_chars[11] = 8'h20;
-        level_text_chars[12] = 8'h20; level_text_chars[13] = 8'h20;
-        level_text_chars[14] = 8'h20; level_text_chars[15] = 8'h20;
-        
-        if (current_level < 10) begin
-            level_text_chars[7] = 8'h30 + current_level;
-            level_text_len = 8;
-        end else begin
-            level_text_chars[7] = 8'h31;
-            level_text_chars[8] = 8'h30 + (current_level - 10);
-            level_text_len = 9;
-        end
-    end
-    
-    draw_string_line level_text_draw (
-        .curr_x(s1a_curr_x),
-        .curr_y(s1a_curr_y),
-        .pos_x(SIDE_X_START),
-        .pos_y(LEVEL_Y_START),
-        .str_chars(level_text_chars),
-        .str_len(level_text_len),
-        .scale(2'd2),
-        .pixel_on(level_text_pixel_on)
-    );
 
     // Heartbeat Counter
     logic [25:0] heartbeat_cnt;
