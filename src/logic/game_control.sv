@@ -90,7 +90,7 @@ module game_control (
   
   always_comb begin
       current_level = total_lines_cleared / 10;
-      if (current_level > 15) current_level = 15;
+      if (current_level >= 15) current_level = 15; // MAX_LEVEL 
       
     case (current_level)
         0:  drop_speed_frames = 40;   

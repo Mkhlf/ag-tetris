@@ -5,7 +5,6 @@ module draw_tetris(
     input  wire logic [10:0] curr_x,
     input  wire logic [9:0]  curr_y,
     input  wire logic active_area,
-
     input  wire logic hsync_in,
     input  wire logic vsync_in,
     
@@ -55,17 +54,17 @@ module draw_tetris(
     localparam HOLD_X_START = GRID_X_START - 200;
     localparam HOLD_Y_START = GRID_Y_START;
 
-    // Colors
+    // Colors - Vibrant scheme for black background
     logic [11:0] color_map [0:7];
     initial begin
         color_map[0] = 12'h000; // Empty (Black)
-        color_map[1] = 12'hF00; // I - Red
-        color_map[2] = 12'h0F0; // J - Green
-        color_map[3] = 12'h00F; // L - Blue
+        color_map[1] = 12'h0FF; // I - Cyan
+        color_map[2] = 12'h00F; // J - Blue
+        color_map[3] = 12'hF80; // L - Orange
         color_map[4] = 12'hFF0; // O - Yellow
-        color_map[5] = 12'hF0F; // S - Magenta
-        color_map[6] = 12'h0FF; // T - Cyan
-        color_map[7] = 12'hFA0; // Z - Orange
+        color_map[5] = 12'h0F0; // S - Green
+        color_map[6] = 12'hF0F; // T - Magenta
+        color_map[7] = 12'hF00; // Z - Red
     end
 
     // ======================================================================================
@@ -146,6 +145,19 @@ module draw_tetris(
     end
 
     // ======================================================================================
+    // PIPELINE STAGE 1.5: Text Rendering Input Registers
+    // ======================================================================================
+    logic s1a_active_area;
+    logic [10:0] s1a_curr_x;
+    logic [9:0] s1a_curr_y;
+    
+    always_ff @(posedge clk) begin
+        s1a_active_area <= s1_active_area;
+        s1a_curr_x <= s1_curr_x;
+        s1a_curr_y <= s1_curr_y;
+    end
+
+    // ======================================================================================
     // PIPELINE STAGE 2: Data Access & Logic
     // ======================================================================================
     
@@ -161,7 +173,7 @@ module draw_tetris(
     logic s2_is_score;
     logic s2_is_level;
     logic s2_is_heartbeat;
-    logic s2_is_grid_line;  // NEW: For grid lines
+    logic s2_is_grid_line;
     logic s2_is_ghost;
     
     // Visual Data
@@ -173,28 +185,28 @@ module draw_tetris(
     logic s2_score_pixel;
     logic s2_level_text_pixel;
     logic s2_level_bar_pixel;
-    logic [3:0] s2_level_bar_color_idx; // 0=Green, 1=Yellow, 2=Red
+    logic [3:0] s2_level_bar_color_idx;
     logic s2_heartbeat_pixel;
-    logic s2_level_bar_border;  // NEW: Border for level bar
+    logic s2_level_bar_border;
     
     // Headers
     logic s2_next_header;
     logic s2_hold_header;
     logic s2_score_header;
     logic s2_level_header;
-    logic s2_hold_used_header; // For grey header
+    logic s2_hold_used_header;
     
     // Helper signals for Stage 2 logic
     logic score_pixel_on;
     logic level_text_pixel_on;
     
-    // Text Generation Logic (Combinational, fed by S1)
+    // Text Generation Logic (Combinational, fed by S1.5)
     // ------------------------------------------------
     
     // Score Number
     draw_number score_draw (
-        .curr_x(s1_curr_x),
-        .curr_y(s1_curr_y),
+        .curr_x(s1a_curr_x),
+        .curr_y(s1a_curr_y),
         .pos_x(SIDE_X_START),
         .pos_y(SCORE_Y_START + 40),
         .number(score),
@@ -230,8 +242,8 @@ module draw_tetris(
     end
     
     draw_string_line level_text_draw (
-        .curr_x(s1_curr_x),
-        .curr_y(s1_curr_y),
+        .curr_x(s1a_curr_x),
+        .curr_y(s1a_curr_y),
         .pos_x(SIDE_X_START),
         .pos_y(LEVEL_Y_START),
         .str_chars(level_text_chars),
@@ -268,6 +280,7 @@ module draw_tetris(
         s2_sprite_addr_y <= 0;
         s2_is_ghost <= 0;
         s2_is_grid_line <= 0;
+        s2_level_bar_border <= 0;
         
         s2_next_header <= 0;
         s2_hold_header <= 0;
@@ -278,6 +291,16 @@ module draw_tetris(
         s2_level_text_pixel <= 0;
         s2_level_bar_pixel <= 0;
         s2_heartbeat_pixel <= 0;
+
+        if (s1_curr_x >= SIDE_X_START - 2 && s1_curr_x < SIDE_X_START + 202 &&
+            s1_curr_y >= LEVEL_Y_START + 38 && s1_curr_y < LEVEL_Y_START + 62) begin
+            
+            if (s1_curr_x < SIDE_X_START || s1_curr_x >= SIDE_X_START + 200 ||
+                s1_curr_y < LEVEL_Y_START + 40 || s1_curr_y >= LEVEL_Y_START + 60) begin
+                s2_level_bar_border <= 1;
+            end
+        end
+
         
         // 1. Grid Logic
         if (s1_is_grid) begin
@@ -371,21 +394,19 @@ module draw_tetris(
             end
             
             s2_level_text_pixel <= level_text_pixel_on;
-
-            // Level Bar Border (2px wide white border)
-            if (s1_curr_x >= SIDE_X_START - 2 && s1_curr_x < SIDE_X_START + 202 &&
-                s1_curr_y >= LEVEL_Y_START + 38 && s1_curr_y < LEVEL_Y_START + 62) begin
+            
+            // // Level Bar Border (2px wide white border)
+            // if (s1_curr_x >= SIDE_X_START - 2 && s1_curr_x < SIDE_X_START + 202 &&
+            //     s1_curr_y >= LEVEL_Y_START + 38 && s1_curr_y < LEVEL_Y_START + 62) begin
                 
-                if (s1_curr_x < SIDE_X_START || s1_curr_x >= SIDE_X_START + 200 ||
-                    s1_curr_y < LEVEL_Y_START + 40 || s1_curr_y >= LEVEL_Y_START + 60) begin
-                    s2_level_bar_border <= 1;
-                end
-            end
+            //     if (s1_curr_x < SIDE_X_START || s1_curr_x >= SIDE_X_START + 200 ||
+            //         s1_curr_y < LEVEL_Y_START + 40 || s1_curr_y >= LEVEL_Y_START + 60) begin
+            //         s2_level_bar_border <= 1;
+            //     end
+            // end
             
             // Level Bar
-            automatic logic [31:0] level_bar_width = (total_lines_cleared % 10) * 20;
-            
-            if (s1_curr_x < SIDE_X_START + level_bar_width &&
+            if (s1_curr_x >= SIDE_X_START && s1_curr_x < SIDE_X_START + ((total_lines_cleared % 10) * 20) &&
                 s1_curr_y >= LEVEL_Y_START + 40 && s1_curr_y < LEVEL_Y_START + 60) begin
                 s2_level_bar_pixel <= 1;
                 if (current_level < 5) s2_level_bar_color_idx <= 0;
@@ -401,7 +422,7 @@ module draw_tetris(
     end
 
     // ======================================================================================
-    // PIPELINE STAGE 3: Color Mapping & Output (with Sprite Lookup)
+    // PIPELINE STAGE 3: Sprite Lookup Alignment
     // ======================================================================================
     
     // Stage 3 intermediate for sprite lookup
@@ -438,7 +459,7 @@ module draw_tetris(
     logic s3_level_bar_pixel;
     logic [3:0] s3_level_bar_color_idx;
     logic s3_heartbeat_pixel;
-    logic s3_level_bar_border;  // NEW
+    logic s3_level_bar_border;
     
     always_ff @(posedge clk) begin
         // Pass through all flags
@@ -464,23 +485,29 @@ module draw_tetris(
         s3_heartbeat_pixel <= s2_heartbeat_pixel;
         s3_level_bar_border <= s2_level_bar_border;
     end
+
+    // ======================================================================================
+    // PIPELINE STAGE 4: Color Mapping & Final Output
+    // ======================================================================================
     
-    // Final Output Stage (uses sprite_pixel which is now aligned)
     always_ff @(posedge clk) begin
         hsync_out <= s3_hsync;
         vsync_out <= s3_vsync;
         
-        vga_r <= 0; vga_g <= 0; vga_b <= 0;
+        // Default: BLACK background
+        vga_r <= 4'h0;
+        vga_g <= 4'h0;
+        vga_b <= 4'h0;
         
         if (s3_active_area) begin
-            // 1. Border
+            // 1. Grid Border - White
             if (s3_is_border) begin
-                vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'hF;
+                vga_r <= 4'hC; vga_g <= 4'hC; vga_b <= 4'hC;
             end
             
-            // 2. Grid Lines 
+            // 2. Grid Lines - Dark Grey
             else if (s3_is_grid_line) begin
-                vga_r <= 4'h2; vga_g <= 4'h2; vga_b <= 4'h2;
+                vga_r <= 4'h3; vga_g <= 4'h3; vga_b <= 4'h3;
             end
             
             // 3. Grid Content (Blocks and Ghost)
@@ -489,12 +516,13 @@ module draw_tetris(
                 automatic logic [3:0] inten = sprite_pixel[7:4];
                 
                 if (s3_is_ghost) begin
-                    // Ghost piece rendering
-                    r = 4'h4; g = 4'h4; b = 4'h4;
+                    // Ghost piece - Semi-transparent white
+                    r = 4'h5; g = 4'h5; b = 4'h5;
                 end else begin
                     // Normal block rendering
                     if (game_over) begin
-                        r = 4'h6; g = 4'h6; b = 4'h6;
+                        // Grey out blocks when game over
+                        r = 4'h4; g = 4'h4; b = 4'h4;
                     end else begin
                         r = color_map[s3_cell_color_idx][11:8];
                         g = color_map[s3_cell_color_idx][7:4];
@@ -502,7 +530,7 @@ module draw_tetris(
                     end
                 end
                 
-                // Apply sprite intensity
+                // Apply sprite shading
                 if (inten != 4'hF) begin
                     vga_r <= r >> 1;
                     vga_g <= g >> 1;
@@ -514,10 +542,11 @@ module draw_tetris(
                 end
             end
             
-            // 4. Next Piece
+            // 4. Next Piece Header - Bright White
             else if (s3_next_header) begin
                 vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'hF;
             end
+            // Next Piece Blocks
             else if (s3_is_next && s3_cell_color_idx != 0) begin
                 automatic logic [3:0] r, g, b;
                 automatic logic [3:0] inten = sprite_pixel[7:4];
@@ -533,20 +562,24 @@ module draw_tetris(
                 end
             end
             
-            // 5. Hold Piece
+            // 5. Hold Piece Header
             else if (s3_hold_header) begin
                 if (s3_hold_used_header) begin
-                    vga_r <= 4'h6; vga_g <= 4'h6; vga_b <= 4'h6;
+                    // Grayed out when used
+                    vga_r <= 4'h5; vga_g <= 4'h5; vga_b <= 4'h5;
                 end else begin
-                    vga_r <= 4'h0; vga_g <= 4'hF; vga_b <= 4'hF;
+                    // Bright cyan when available
+                    vga_r <= 4'h0; vga_g <= 4'hE; vga_b <= 4'hE;
                 end
             end
+            // Hold Piece Blocks
             else if (s3_is_hold && s3_cell_color_idx != 0) begin
                 automatic logic [3:0] r, g, b;
                 automatic logic [3:0] inten = sprite_pixel[7:4];
                 
                 if (hold_used) begin 
-                    r = 4'h5; g = 4'h5; b = 4'h5;
+                    // Dim when used
+                    r = 4'h4; g = 4'h4; b = 4'h4;
                 end else begin
                     r = color_map[s3_cell_color_idx][11:8];
                     g = color_map[s3_cell_color_idx][7:4];
@@ -560,35 +593,39 @@ module draw_tetris(
                 end
             end
             
-            // 6. Score
+            // 6. Score Header - Yellow/Gold
             else if (s3_score_header) begin
-                vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'h0;
+                vga_r <= 4'hF; vga_g <= 4'hC; vga_b <= 4'h0;
             end
+            // Score Numbers - White
             else if (s3_score_pixel) begin
                 vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'hF;
             end
             
-            // 7. Level
+            // 7. Level Text - Cyan
             else if (s3_level_header && s3_level_text_pixel) begin
-                vga_r <= 4'h0; vga_g <= 4'hF; vga_b <= 4'hF;
+                vga_r <= 4'h0; vga_g <= 4'hD; vga_b <= 4'hD;
             end
+            // Level Bar Border - Light grey
             else if (s3_level_bar_border) begin
-                vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'hF;  // White border
+                vga_r <= 4'h8; vga_g <= 4'h8; vga_b <= 4'h8;
             end
+            // Level Bar - Gradient based on level
             else if (s3_level_bar_pixel) begin
                 case (s3_level_bar_color_idx)
-                    0: begin vga_r <= 4'h0; vga_g <= 4'hF; vga_b <= 4'h0; end
-                    1: begin vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'h0; end
-                    2: begin vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'h0; end
-                    default: begin vga_r <= 4'h0; vga_g <= 4'hF; vga_b <= 4'h0; end
+                    0: begin vga_r <= 4'h0; vga_g <= 4'hE; vga_b <= 4'h0; end  // Bright Green (easy)
+                    1: begin vga_r <= 4'hF; vga_g <= 4'hC; vga_b <= 4'h0; end  // Orange (medium)
+                    2: begin vga_r <= 4'hF; vga_g <= 4'h0; vga_b <= 4'h0; end  // Red (hard)
+                    default: begin vga_r <= 4'h0; vga_g <= 4'hE; vga_b <= 4'h0; end
                 endcase
             end
-                    
-            // 8. Heartbeat
+            
+            // 8. Heartbeat - Blinking white when game over
             else if (s3_heartbeat_pixel) begin
                 vga_r <= 4'hF; vga_g <= 4'hF; vga_b <= 4'hF;
             end
         end
+        // Outside active area, stays black (default)
     end
 
 endmodule

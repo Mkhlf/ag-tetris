@@ -268,6 +268,7 @@ module game_top(
 
     // ========================================================================
     // CDC: Game State Synchronization (game_clk → pix_clk)
+    // Frame-sync to reduce CDC traffic from 83MHz to 60Hz
     // ========================================================================
     field_t display_field_sync;
     logic [31:0] score_sync;
@@ -278,7 +279,21 @@ module game_top(
     logic [7:0] total_lines_cleared_sync;
     logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y_sync;
 
-    // Double-register synchronizer for multi-bit buses
+    // Vsync edge detection for frame sync
+    logic vsync_prev;
+    logic frame_sync_pulse;
+
+    always_ff @(posedge pix_clk) begin
+        if (rst) begin
+            vsync_prev <= 0;
+            frame_sync_pulse <= 0;
+        end else begin
+            vsync_prev <= vsync_raw;
+            frame_sync_pulse <= vsync_raw && !vsync_prev; // Rising edge of vsync
+        end
+    end
+
+    // Only sync game state once per frame (60 Hz instead of 83.46 MHz)
     always_ff @(posedge pix_clk) begin
         if (rst) begin
             display_field_sync <= '0;
@@ -291,7 +306,7 @@ module game_top(
             current_level_sync <= 0;
             total_lines_cleared_sync <= 0;
             ghost_y_sync <= 0;
-        end else begin
+        end else if (frame_sync_pulse) begin  // ← KEY CHANGE: Only update at frame boundary
             display_field_sync <= display_field;
             score_sync <= score;
             game_over_sync <= game_over;
@@ -303,6 +318,7 @@ module game_top(
             total_lines_cleared_sync <= total_lines_cleared;
             ghost_y_sync <= ghost_y;
         end
+        // else: Hold previous values (no update)
     end
 
     // VGA Output (Raw)
