@@ -21,7 +21,7 @@ module spin_detector (
         input logic signed [`FIELD_VERTICAL_WIDTH:0] y
     );
         // Out of bounds or filled cell = blocked
-        if (x < 0 || x >= `FIELD_HORIZONTAL_SIZE || y < 0 || y >= `FIELD_VERTICAL_SIZE)
+        if (x < 0 || x >= `FIELD_HORIZONTAL || y < 0 || y >= `FIELD_VERTICAL)
             return 1'b1;
         else
             return (f.data[y][x] != `TETROMINO_EMPTY);
@@ -119,7 +119,7 @@ module spin_detector (
                     // L-Spin
                     logic [3:0] corners_filled;
                     corners_filled[0] = is_blocked(t_ctrl.coordinate.x - 1, t_ctrl.coordinate.y - 1);
-                    cornespin_detectorrs_filled[1] = is_blocked(t_ctrl.coordinate.x + 1, t_ctrl.coordinate.y - 1);
+                    corners_filled[1] = is_blocked(t_ctrl.coordinate.x + 1, t_ctrl.coordinate.y - 1);
                     corners_filled[2] = is_blocked(t_ctrl.coordinate.x - 1, t_ctrl.coordinate.y + 1);
                     corners_filled[3] = is_blocked(t_ctrl.coordinate.x + 1, t_ctrl.coordinate.y + 1);
                     

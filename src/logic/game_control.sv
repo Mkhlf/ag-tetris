@@ -33,7 +33,8 @@ module game_control (
     output  logic           spin_l_flag,
     output  logic           spin_i_flag,
     output  logic           is_mini_spin,     // Mini T-spin flag
-    output  logic           tetris_flag       // 4-line clear flag
+    output  logic           tetris_flag,      // 4-line clear flag
+    output  logic [7:0]     total_lines_cleared_out // Exposed for level bar
   );
 
   // States
@@ -200,6 +201,11 @@ module game_control (
   
   // Timers
   integer drop_timer;
+  integer lock_timer; // NEW: Lock delay timer
+  integer msg_timer;  // NEW: Message duration timer
+  
+  localparam LOCK_DELAY_MAX = 30; // ~0.5s at 60Hz
+  localparam MSG_DURATION = 120;  // ~2s at 60Hz
   
   // Submodules
   generate_tetromino gen (
@@ -254,6 +260,7 @@ module game_control (
   assign t_hold_disp = t_hold;
   assign hold_used_out = hold_used;
   assign current_level_out = current_level;
+  assign total_lines_cleared_out = total_lines_cleared;
   
   // Candidate Logic for Validation
   always_comb begin
@@ -315,8 +322,16 @@ module game_control (
         end
         
         DOWN: begin
-            if (valid) ns = IDLE;
-            else ns = CLEAN;
+            if (valid) begin
+                ns = IDLE;
+            end else begin
+                // Collision detected
+                if (lock_timer < LOCK_DELAY_MAX) begin
+                    ns = IDLE; // Allow sliding/rotating
+                end else begin
+                    ns = CLEAN; // Lock piece
+                end
+            end
         end
         
         HARD_DROP: begin
@@ -481,6 +496,8 @@ module game_control (
         rotation_from <= 0;
         last_move_was_rotation <= 0;
         kick_used <= 0;
+        lock_timer <= 0;
+        msg_timer <= 0;
         // Clear spin flags
         spin_t_flag <= 0;
         spin_s_flag <= 0;
@@ -496,6 +513,7 @@ module game_control (
         // Timer Logic
         if (tick_game) begin
             if (ps == IDLE) drop_timer <= drop_timer + 1;
+            if (msg_timer > 0) msg_timer <= msg_timer - 1;
         end
         if (ps == DOWN || ps == GEN) drop_timer <= 0;
         
@@ -517,13 +535,8 @@ module game_control (
                 end
             end
             
-            GEN_WAIT: begin
-                t_curr <= t_gen;
-            end
-            
-            DROP_LOCKOUT: begin
-                hold_used <= 0;
-                // Clear visual flags after a delay
+            // Clear flags when timer expires
+            if (msg_timer == 0) begin
                 spin_t_flag <= 0;
                 spin_s_flag <= 0;
                 spin_z_flag <= 0;
@@ -534,10 +547,20 @@ module game_control (
                 tetris_flag <= 0;
             end
             
+            GEN_WAIT: begin
+                t_curr <= t_gen;
+            end
+            
+            DROP_LOCKOUT: begin
+                hold_used <= 0;
+                // Flags are now cleared by msg_timer
+            end
+            
             MOVE_LEFT: begin
                 if (valid) begin
                     t_curr.coordinate.x <= t_curr.coordinate.x - 1;
                     last_move_was_rotation <= 0;  // Movement cancels rotation flag
+                    lock_timer <= 0; // Reset lock timer on successful move
                 end
             end
             
@@ -545,6 +568,7 @@ module game_control (
                 if (valid) begin
                     t_curr.coordinate.x <= t_curr.coordinate.x + 1;
                     last_move_was_rotation <= 0;  // Movement cancels rotation flag
+                    lock_timer <= 0; // Reset lock timer on successful move
                 end
             end
             
@@ -556,6 +580,7 @@ module game_control (
                             kick_attempt <= 0;
                             last_move_was_rotation <= 1;  // Mark as rotation move
                             kick_used <= 0;  // No kick needed
+                            lock_timer <= 0; // Reset lock timer
                         end else begin
                             kick_attempt <= 1;
                         end
@@ -566,6 +591,7 @@ module game_control (
                         kick_attempt <= 0;
                         last_move_was_rotation <= 1;  // Mark as rotation move
                         kick_used <= kick_attempt;  // Record which kick worked
+                        lock_timer <= 0; // Reset lock timer
                     end else if (kick_attempt < 4) begin
                         kick_attempt <= kick_attempt + 1;
                     end else begin
@@ -579,8 +605,10 @@ module game_control (
                 if (valid) begin
                     t_curr.coordinate.y <= t_curr.coordinate.y + 1;
                     last_move_was_rotation <= 0;  // Down movement cancels rotation
+                    lock_timer <= 0; // Reset lock timer on successful move
                 end else begin
                     f_curr <= f_disp;
+                    lock_timer <= lock_timer + 1; // Increment lock timer if stuck
                 end
             end
             
@@ -642,6 +670,11 @@ module game_control (
                     spin_l_flag <= is_l_spin;
                     spin_i_flag <= is_i_spin;
                     is_mini_spin <= is_t_spin_mini;
+                    
+                    // Start message timer if any event occurred
+                    if ((lines_cleared == 4) || is_t_spin || is_s_spin || is_z_spin || is_j_spin || is_l_spin || is_i_spin) begin
+                        msg_timer <= MSG_DURATION;
+                    end
                     
                     // BCD Addition
                     if (lines_cleared != 0) begin

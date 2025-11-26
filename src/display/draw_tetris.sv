@@ -14,6 +14,7 @@ module draw_tetris(
     input  tetromino_ctrl  t_hold, // Hold piece
     input  logic           hold_used, // Whether hold was used this piece
     input  logic [3:0]     current_level, // Game level
+    input  logic [7:0]     total_lines_cleared, // NEW: For level bar
     // Ghost pieces 
     input  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
     input  tetromino_ctrl  t_curr, // Current piece for ghost rendering
@@ -124,9 +125,18 @@ module draw_tetris(
     always_comb begin
         message_len = 0;
         // Initialize to spaces
-        for (int i = 0; i < 16; i++) begin
-            message_chars[i] = 8'h20; // Space
-        end
+        // for (int i = 0; i < 16; i++) begin
+        //     message_chars[i] = 8'h20; // Space
+        // end
+
+        message_chars[0] = 8'h20; message_chars[1] = 8'h20;
+        message_chars[2] = 8'h20; message_chars[3] = 8'h20;
+        message_chars[4] = 8'h20; message_chars[5] = 8'h20;
+        message_chars[6] = 8'h20; message_chars[7] = 8'h20;
+        message_chars[8] = 8'h20; message_chars[9] = 8'h20;
+        message_chars[10] = 8'h20; message_chars[11] = 8'h20;
+        message_chars[12] = 8'h20; message_chars[13] = 8'h20;
+        message_chars[14] = 8'h20; message_chars[15] = 8'h20;
         
         // Priority: TETRIS > T-SPIN > I-SPIN > S-SPIN > Z-SPIN > J-SPIN > L-SPIN
         if (tetris_flag) begin
@@ -211,6 +221,7 @@ module draw_tetris(
         .pos_y(MESSAGE_Y_START),
         .str_chars(message_chars),
         .str_len(message_len),
+        .scale(2'd2), // Scale up event text
         .pixel_on(message_pixel_on)
     );
     
@@ -228,6 +239,12 @@ module draw_tetris(
         level_text_chars[4] = 8'h4C; // L
         level_text_chars[5] = 8'h3A; // :
         level_text_chars[6] = 8'h20; // Space
+
+        // Initialize remaining to spaces BEFORE conditional assignment
+        level_text_chars[8] = 8'h20; level_text_chars[9] = 8'h20;
+        level_text_chars[10] = 8'h20; level_text_chars[11] = 8'h20;
+        level_text_chars[12] = 8'h20; level_text_chars[13] = 8'h20;
+        level_text_chars[14] = 8'h20; level_text_chars[15] = 8'h20;
         
         // Convert level number to ASCII
         if (current_level < 10) begin
@@ -241,9 +258,10 @@ module draw_tetris(
         end
         
         // Fill rest with spaces
-        for (int i = level_text_len; i < 16; i++) begin
-            level_text_chars[i] = 8'h20; // Space
-        end
+        // for (int i = level_text_len; i < 16; i++) begin
+        //     level_text_chars[i] = 8'h20; // Space
+        // end
+
     end
     
     draw_string_line level_text_draw (
@@ -253,6 +271,7 @@ module draw_tetris(
         .pos_y(LEVEL_Y_START),
         .str_chars(level_text_chars),
         .str_len(level_text_len),
+        .scale(2'd2), // Scale up level text
         .pixel_on(level_text_pixel_on)
     );
 
@@ -491,12 +510,13 @@ module draw_tetris(
                      if (level_text_pixel_on) begin
                          vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'hF; // Cyan text
                      end
-                 end else begin
-                     // Draw Level Bar (only if not at max level)
-                    //  if (current_level < 15) begin
-                         level_bar_width = (current_level + 1) * 10; // Each level = 10 pixels
-                         
-                         if (curr_x < SIDE_X_START + level_bar_width &&
+                  end else begin
+                      // Draw Level Bar (Progress to next level)
+                      // Each level is 10 lines. Bar width 200px.
+                      // Width = (lines % 10) * 20
+                      level_bar_width = (total_lines_cleared % 10) * 20; 
+                          
+                      if (curr_x < SIDE_X_START + level_bar_width &&
                              curr_y >= LEVEL_Y_START + 40 && curr_y < LEVEL_Y_START + 60) begin
                              // Gradient color based on level
                              if (current_level < 5) begin

@@ -8,6 +8,7 @@ module draw_string (
     input  logic [10:0] pos_x,
     input  logic [9:0]  pos_y,
     input  logic [7:0]  char_code,  // ASCII character code
+    input  logic [1:0]  scale,      // Scale factor (1, 2, 3...)
     output logic        pixel_on
 );
 
@@ -76,16 +77,27 @@ module draw_string (
     assign rel_x = curr_x - pos_x;
     assign rel_y = curr_y - pos_y;
     
-    assign pixel_x = rel_x[2:0];
-    assign pixel_y = rel_y[2:0];
+    // Scale support
+    logic [10:0] scaled_rel_x, scaled_rel_y;
+    assign scaled_rel_x = rel_x / scale;
+    assign scaled_rel_y = rel_y / scale;
+    
+    assign pixel_x = scaled_rel_x[2:0];
+    assign pixel_y = scaled_rel_y[2:0];
     
     always_comb begin
         pixel_on = 0;
-        if (rel_x >= 0 && rel_x < CHAR_W && 
-            rel_y >= 0 && rel_y < CHAR_H) begin
+        if (rel_x >= 0 && rel_x < (CHAR_W * scale) && 
+            rel_y >= 0 && rel_y < (CHAR_H * scale)) begin
             // Font data is stored row-major, MSB first
             // Row pixel_y, bit (7 - pixel_x)
-            if (font_data[63 - (pixel_y * 8 + (7 - pixel_x))]) begin
+            // FIX: Removed "7 - " to fix mirroring issue (if font is LSB first or user meant horizontal flip)
+            // Actually, standard font hex usually maps MSB to left. 
+            // If user says it's mirrored, it might be that "7 - pixel_x" was correct for MSB-left, 
+            // but the display scan is doing something else? 
+            // Or maybe the font data I have IS LSB-left?
+            // Let's try flipping it by using just `pixel_x`.
+            if (font_data[63 - (pixel_y * 8 + pixel_x)]) begin
                 pixel_on = 1;
             end
         end
@@ -101,12 +113,16 @@ module draw_string_line (
     input  logic [9:0]  pos_y,
     input  logic [7:0]  str_chars [0:15],  // Up to 16 characters
     input  logic [3:0]  str_len,            // Actual string length
+    input  logic [1:0]  scale,              // Scale factor
     output logic        pixel_on
 );
 
     localparam CHAR_W = 8;
     localparam CHAR_SPACING = 1;
-    localparam CHAR_TOTAL_W = CHAR_W + CHAR_SPACING;
+    // localparam CHAR_TOTAL_W = CHAR_W + CHAR_SPACING;
+    
+    logic [10:0] char_total_w;
+    assign char_total_w = (CHAR_W + CHAR_SPACING) * scale;
     
     logic [10:0] rel_x, rel_y;
     logic [3:0] char_idx;
@@ -117,7 +133,7 @@ module draw_string_line (
     assign rel_y = curr_y - pos_y;
     
     // Determine which character we're in
-    assign char_idx = rel_x / CHAR_TOTAL_W;
+    assign char_idx = rel_x / char_total_w;
     
     // Get the character code for this position
     always_comb begin
@@ -130,7 +146,7 @@ module draw_string_line (
     
     // Calculate position within character
     logic [10:0] char_pos_x;
-    assign char_pos_x = pos_x + (char_idx * CHAR_TOTAL_W);
+    assign char_pos_x = pos_x + (char_idx * char_total_w);
     
     draw_string char_draw (
         .curr_x(curr_x),
@@ -138,6 +154,7 @@ module draw_string_line (
         .pos_x(char_pos_x),
         .pos_y(pos_y),
         .char_code(current_char),
+        .scale(scale),
         .pixel_on(char_pixel_on)
     );
     

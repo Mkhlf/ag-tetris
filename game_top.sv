@@ -239,6 +239,7 @@ module game_top(
     logic [3:0] current_level;
     logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y;
     tetromino_ctrl t_curr;
+    logic [7:0] total_lines_cleared; // NEW: For level bar
     
     game_control game_inst (
         .clk(game_clk),
@@ -260,7 +261,10 @@ module game_top(
         .hold_used_out(hold_used),
         .current_level_out(current_level),
         .ghost_y(ghost_y),
+        .ghost_y(ghost_y),
         .t_curr_out(t_curr),
+        .total_lines_cleared_out(total_lines_cleared), // NEW
+
 
         // flags for spins and tetris
         .spin_t_flag(spin_t_flag),
@@ -317,7 +321,10 @@ module game_top(
         .hold_used(hold_used),
         .current_level(current_level),
         .ghost_y(ghost_y),
+        .current_level(current_level),
+        .ghost_y(ghost_y),
         .t_curr(t_curr),
+        .total_lines_cleared(total_lines_cleared), // NEW
         .spin_t_flag(spin_t_flag),
         .spin_s_flag(spin_s_flag),
         .spin_z_flag(spin_z_flag),
