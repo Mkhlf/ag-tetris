@@ -85,12 +85,12 @@ module game_control (
   logic is_i_spin;
   
   // Level & Speed Logic
-  logic [3:0] current_level;
+  logic [3:0] current_level = 0;
   logic [31:0] drop_speed_frames;
-  
+
   always_comb begin
-      current_level = total_lines_cleared / 10;
-      if (current_level >= 15) current_level = 15; // MAX_LEVEL 
+
+    if (current_level != 15) current_level = total_lines_cleared / 10;
       
     case (current_level)
         0:  drop_speed_frames = 40;   
