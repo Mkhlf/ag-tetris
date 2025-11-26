@@ -11,6 +11,8 @@ module draw_tetris(
     input  logic [31:0]    score,
     input  logic           game_over,
     input  tetromino_ctrl  t_next, // Next piece
+    input  tetromino_ctrl  t_hold, // Hold piece
+    input  logic           hold_used, // Whether hold was used this piece
     input  logic [3:0]     current_level, // Game level
     // Ghost pieces 
     input  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
@@ -36,11 +38,15 @@ module draw_tetris(
     localparam GRID_X_START = (1280 - GRID_W) / 2; // 480
     localparam GRID_Y_START = (800 - GRID_H) / 2;  // 80
     
-    // Sidebar (Next Piece & Score)
+    // Right Sidebar (Next Piece & Score)
     localparam SIDE_X_START = GRID_X_START + GRID_W + 50;
     localparam NEXT_Y_START = GRID_Y_START;
     localparam SCORE_Y_START = NEXT_Y_START + 200;
     localparam LEVEL_Y_START = SCORE_Y_START + 150;
+    
+    // Left Sidebar (Hold Piece)
+    localparam HOLD_X_START = GRID_X_START - 200;
+    localparam HOLD_Y_START = GRID_Y_START;
 
     // Colors
     logic [11:0] color_map [0:7];
@@ -78,6 +84,11 @@ module draw_tetris(
     logic [10:0] nx;
     logic [9:0] ny;
     logic [2:0] nr, nc;
+    
+    // Hold piece rendering variables
+    logic [10:0] hx;
+    logic [9:0] hy;
+    logic [2:0] hr, hc;
     
     // Level bar width (moved to module scope for synthesis)
     logic [31:0] level_bar_width;
@@ -220,7 +231,58 @@ module draw_tetris(
                 end
             end
             
-            // 3. Draw Score (Below Next)
+            // 3. Draw Hold Piece (Top Left)
+            else if (curr_x >= HOLD_X_START && curr_x < HOLD_X_START + 150 &&
+                     curr_y >= HOLD_Y_START && curr_y < HOLD_Y_START + 150) begin
+                
+                // Label "HOLD"
+                if (curr_y < HOLD_Y_START + 20) begin
+                    // Header color: Cyan if available, Grey if used
+                    if (hold_used) begin
+                        vga_r = 4'h6; vga_g = 4'h6; vga_b = 4'h6; // Grey Header (used)
+                    end else begin
+                        vga_r = 4'h0; vga_g = 4'hF; vga_b = 4'hF; // Cyan Header (available)
+                    end
+                end else begin
+                    // Draw Held Piece (if not empty)
+                    if (t_hold.idx.data != `TETROMINO_EMPTY) begin
+                        hx = curr_x - HOLD_X_START - 20;
+                        hy = curr_y - HOLD_Y_START - 40;
+                        
+                        hr = hy / BLOCK_SIZE;
+                        hc = hx / BLOCK_SIZE;
+                        
+                        if (hx >= 0 && hy >= 0 && hr < 4 && hc < 4) begin
+                            if (t_hold.tetromino.data[0][hr][hc]) begin
+                                cell_color_idx = t_hold.idx.data + 1;
+                                
+                                sprite_addr_x = (hx % BLOCK_SIZE) >> 1;
+                                sprite_addr_y = (hy % BLOCK_SIZE) >> 1;
+                                intensity = sprite_pixel[7:4];
+                                
+                                // Grey out if hold was already used this piece
+                                if (hold_used) begin
+                                    vga_r = 4'h5;
+                                    vga_g = 4'h5;
+                                    vga_b = 4'h5;
+                                end else begin
+                                    vga_r = color_map[cell_color_idx][11:8];
+                                    vga_g = color_map[cell_color_idx][7:4];
+                                    vga_b = color_map[cell_color_idx][3:0];
+                                end
+                                
+                                if (intensity != 4'hF) begin
+                                    vga_r = vga_r >> 1;
+                                    vga_g = vga_g >> 1;
+                                    vga_b = vga_b >> 1;
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            // 4. Draw Score (Below Next)
             else if (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 200 &&
                      curr_y >= SCORE_Y_START && curr_y < SCORE_Y_START + 100) begin
                  
@@ -235,7 +297,7 @@ module draw_tetris(
                  end
             end
             
-            // 4. Draw Level (Below Score)
+            // 5. Draw Level (Below Score)
             else if (curr_x >= SIDE_X_START && curr_x < SIDE_X_START + 200 &&
                      curr_y >= LEVEL_Y_START && curr_y < LEVEL_Y_START + 100) begin
                  

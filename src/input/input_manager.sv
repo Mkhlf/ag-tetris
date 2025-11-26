@@ -11,32 +11,33 @@ module input_manager (
     input  logic raw_down,
     input  logic raw_rotate,
     input  logic raw_drop,
+    input  logic raw_hold,
     
     // Processed Outputs
     output logic cmd_left,   // Pulse (DAS)
     output logic cmd_right,  // Pulse (DAS)
     output logic cmd_down,   // Pulse (DAS or continuous?)
     output logic cmd_rotate, // Pulse (One-shot)
-    output logic cmd_drop    // Pulse (One-shot)
+    output logic cmd_drop,   // Pulse (One-shot)
+    output logic cmd_hold    // Pulse (One-shot)
   );
 
-  // Parameters for DAS (Delayed Auto Shift)
-  localparam DAS_DELAY = 16; // Frames before auto-repeat
-  localparam DAS_SPEED = 4;  // Frames between repeats
+  // Parameters for DAS (Delayed Auto Shift) - Classic Tetris feel
+  // At 60Hz: 16 frames = ~267ms delay, 6 frames = ~100ms repeat
+  localparam DAS_DELAY = 16; // Frames before auto-repeat (~267ms)
+  localparam DAS_SPEED = 6;  // Frames between repeats (~100ms)
   
-  // Helper: Edge Detector + DAS
-  // For Left/Right/Down
-  
+  // Timers and edge detectors
   logic [5:0] timer_left, timer_right, timer_down;
-  logic prev_left, prev_right, prev_down, prev_rotate, prev_drop;
+  logic prev_left, prev_right, prev_down, prev_rotate, prev_drop, prev_hold;
   
   always_ff @(posedge clk) begin
     if (rst) begin
         cmd_left <= 0; cmd_right <= 0; cmd_down <= 0;
-        cmd_rotate <= 0; cmd_drop <= 0;
+        cmd_rotate <= 0; cmd_drop <= 0; cmd_hold <= 0;
         timer_left <= 0; timer_right <= 0; timer_down <= 0;
         prev_left <= 0; prev_right <= 0; prev_down <= 0;
-        prev_rotate <= 0; prev_drop <= 0;
+        prev_rotate <= 0; prev_drop <= 0; prev_hold <= 0;
     end else begin
         // Default low
         cmd_left <= 0;
@@ -44,6 +45,7 @@ module input_manager (
         cmd_down <= 0;
         cmd_rotate <= 0;
         cmd_drop <= 0;
+        cmd_hold <= 0;
         
         // --- LEFT ---
         if (raw_left) begin
@@ -123,6 +125,12 @@ module input_manager (
             cmd_drop <= 1;
         end
         prev_drop <= raw_drop;
+        
+        // --- HOLD (One Shot) ---
+        if (raw_hold && !prev_hold) begin
+            cmd_hold <= 1;
+        end
+        prev_hold <= raw_hold;
     end
   end
 

@@ -8,6 +8,7 @@
 `define X_KEY_C         8'h22
 `define Z_KEY_C         8'h1A
 `define N_KEY_C         8'h31
+`define LSHIFT_C        8'h12   // Left Shift key for HOLD
 
 `define LEFT_ARROW_C    8'h6B
 `define DOWN_ARROW_C    8'h72

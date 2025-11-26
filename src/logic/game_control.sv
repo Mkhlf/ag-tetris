@@ -11,12 +11,15 @@ module game_control (
     input   logic           key_down,   // Soft Drop (Continuous or Pulse?) - usually continuous for soft drop
     input   logic           key_rotate, // Pulse
     input   logic           key_drop,   // Hard Drop Pulse
+    input   logic           key_hold,   // Hold Piece Pulse
     input   logic           key_drop_held, // Raw state for lockout
     
     output  field_t         display,
     output  logic [31:0]    score,
     output  logic           game_over,
     output  tetromino_ctrl  t_next_disp,
+    output  tetromino_ctrl  t_hold_disp,  // Hold piece for display
+    output  logic           hold_used_out, // Whether hold was used this piece
     output  logic [3:0]     current_level_out,
     output  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
     output  tetromino_ctrl  t_curr_out
@@ -32,6 +35,8 @@ module game_control (
     ROTATE,
     DOWN,
     HARD_DROP,
+    HOLD,
+    HOLD_SWAP,
     CLEAN,
     GAME_OVER_STATE,
     RESET_GAME,
@@ -44,6 +49,10 @@ module game_control (
   // Internal Signals
   tetromino_ctrl t_curr, t_curr_cand, t_gen, t_gen_next;
   tetromino_ctrl t_check; // Candidate for validation
+  tetromino_ctrl t_hold;  // Held piece
+  tetromino_ctrl t_hold_old; // Temp storage for swap
+  logic hold_used;        // Can only hold once per piece placement
+  logic hold_empty;       // Whether hold slot is empty
   
   field_t f_curr, f_disp, f_cleaned;
   
@@ -126,6 +135,8 @@ module game_control (
   assign t_curr_out = t_curr;
   assign display = f_disp;
   assign t_next_disp = t_gen_next;
+  assign t_hold_disp = t_hold;
+  assign hold_used_out = hold_used;
   assign current_level_out = current_level;
   
   // Candidate Logic for Validation
@@ -138,6 +149,13 @@ module game_control (
         DOWN: t_check.coordinate.y = t_curr.coordinate.y + 1;
         HARD_DROP: t_check.coordinate.y = t_curr.coordinate.y + 1;
         ROTATE: t_check = t_rotated; // Use output of rotator
+        HOLD_SWAP: begin
+            // After swapping, validate the old held piece at spawn position
+            t_check = t_hold_old;
+            t_check.coordinate.x = 3;
+            t_check.coordinate.y = 0;
+            t_check.rotation = 0;
+        end
         default: t_check = t_curr;
     endcase
   end
@@ -158,6 +176,7 @@ module game_control (
         
         IDLE: begin
             if (key_drop) ns = HARD_DROP;
+            else if (key_hold && !hold_used) ns = HOLD;
             else if (key_rotate) ns = ROTATE;
             else if (key_left) ns = MOVE_LEFT;
             else if (key_right) ns = MOVE_RIGHT;
@@ -183,6 +202,19 @@ module game_control (
             // If invalid, we hit bottom. Go to CLEAN.
             if (valid) ns = HARD_DROP;
             else ns = CLEAN;
+        end
+        
+        HOLD: begin
+            // If hold is empty, just store current and get new piece
+            // If hold has a piece, swap them
+            if (hold_empty) ns = GEN;
+            else ns = HOLD_SWAP;
+        end
+        
+        HOLD_SWAP: begin
+            // After swap, validate the swapped piece
+            if (valid) ns = IDLE;
+            else ns = GAME_OVER_STATE; // Rare: swapped piece doesn't fit
         end
         
         CLEAN: begin
@@ -217,6 +249,12 @@ module game_control (
         f_curr.data <= '1; // Initialize to all 1s (TETROMINO_EMPTY = 3'b111)
         t_curr.idx.data <= `TETROMINO_EMPTY;
         t_curr.tetromino.data <= '0;
+        t_hold.idx.data <= `TETROMINO_EMPTY;
+        t_hold.tetromino.data <= '0;
+        t_hold_old.idx.data <= `TETROMINO_EMPTY;
+        t_hold_old.tetromino.data <= '0;
+        hold_empty <= 1;
+        hold_used <= 0;
         score <= 0;
         game_over <= 0;
         drop_timer <= 0;
@@ -233,6 +271,7 @@ module game_control (
         case (ps)
             GEN_WAIT: begin
                 t_curr <= t_gen;
+                hold_used <= 0; // Reset hold_used for new piece
             end
             
             MOVE_LEFT: begin
@@ -269,9 +308,36 @@ module game_control (
                 end
             end
             
+            HOLD: begin
+                // Save old held piece for swap (if not empty)
+                t_hold_old <= t_hold;
+                
+                // Store current piece in hold (reset rotation and position)
+                t_hold.idx <= t_curr.idx;
+                t_hold.tetromino <= t_curr.tetromino;
+                t_hold.rotation <= 0;
+                t_hold.coordinate.x <= 3;
+                t_hold.coordinate.y <= 0;
+                hold_used <= 1;
+                
+                if (hold_empty) begin
+                    hold_empty <= 0;
+                    // Will transition to GEN to get new piece
+                end
+                // If not empty, will transition to HOLD_SWAP
+            end
+            
+            HOLD_SWAP: begin
+                // Load the OLD held piece as current (from temp storage)
+                t_curr.idx <= t_hold_old.idx;
+                t_curr.tetromino <= t_hold_old.tetromino;
+                t_curr.rotation <= 0;
+                t_curr.coordinate.x <= 3;
+                t_curr.coordinate.y <= 0;
+            end
+            
             CLEAN: begin
                 if (clean_done) begin
-                    f_curr <= f_cleaned;
                     f_curr <= f_cleaned;
                     // BCD Score Update (Add lines_cleared * 100)
                     // score[11:8] is hundreds digit
@@ -303,6 +369,10 @@ module game_control (
             
             RESET_GAME: begin
                 f_curr.data <= '1;
+                t_hold.idx.data <= `TETROMINO_EMPTY;
+                t_hold.tetromino.data <= '0;
+                hold_empty <= 1;
+                hold_used <= 0;
                 score <= 0;
                 game_over <= 0;
             end
