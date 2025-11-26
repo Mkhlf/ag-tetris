@@ -158,6 +158,17 @@ module draw_tetris(
     end
 
     // ======================================================================================
+    // PIPELINE STAGE 1.75: Text Rendering Output Registers
+    // ======================================================================================
+    logic s1b_score_pixel_on;
+    logic s1b_level_text_pixel_on;
+
+    always_ff @(posedge clk) begin
+        s1b_score_pixel_on <= score_pixel_on;
+        s1b_level_text_pixel_on <= level_text_pixel_on;
+    end
+
+    // ======================================================================================
     // PIPELINE STAGE 2: Data Access & Logic
     // ======================================================================================
     
@@ -381,19 +392,19 @@ module draw_tetris(
         
         // 4. Score Logic
         else if (s1_is_score) begin
-             if (s1_curr_y < SCORE_Y_START + 20) begin
-                 s2_score_header <= 1;
-             end
-             s2_score_pixel <= score_pixel_on;
+            if (s1_curr_y < SCORE_Y_START + 20) begin
+                s2_score_header <= 1;
+            end
+            s2_score_pixel <= s1b_score_pixel_on;  // ← NEW: From buffered register
         end
-        
+
         // 5. Level Logic
         else if (s1_is_level) begin
             if (s1_curr_y < LEVEL_Y_START + 20) begin
                 s2_level_header <= 1;
             end
             
-            s2_level_text_pixel <= level_text_pixel_on;
+            s2_level_text_pixel <= s1b_level_text_pixel_on;  // ← NEW: From buffered registeron;
             
             // // Level Bar Border (2px wide white border)
             // if (s1_curr_x >= SIDE_X_START - 2 && s1_curr_x < SIDE_X_START + 202 &&

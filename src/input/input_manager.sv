@@ -24,10 +24,9 @@ module input_manager (
     output logic cmd_hold    // Pulse (One-shot)
   );
 
-  // Parameters for DAS (Delayed Auto Shift) - Classic Tetris feel
-  // At 60Hz: 16 frames = ~267ms delay, 6 frames = ~100ms repeat
-  localparam DAS_DELAY = 16; // Frames before auto-repeat (~267ms)
-  localparam DAS_SPEED = 6;  // Frames between repeats (~100ms)
+  // Parameters for DAS (Delayed Auto Shift) - modern Tetris feel
+  localparam DAS_DELAY = 10; // Frames before auto-repeat
+  localparam DAS_SPEED = 3;  // Frames between repeats
   
   // Timers and edge detectors
   logic [5:0] timer_left, timer_right, timer_down;

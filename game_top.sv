@@ -173,6 +173,49 @@ module game_top(
         end
     end
 
+
+// ========================================================================
+// Keyboard Watchdog - Unstick keys held for absurdly long time
+// ========================================================================
+    logic [19:0] watchdog_counter;  // 20 bits = ~1M cycles = ~40ms at 25MHz
+    logic watchdog_timeout;
+
+    always_ff @(posedge game_clk) begin
+        if (rst) begin
+            watchdog_counter <= 0;
+            watchdog_timeout <= 0;
+        end else begin
+            // If ANY keyboard key is held
+            if (raw_left_kb || raw_right_kb || raw_down_kb || 
+                raw_rotate_cw_kb || raw_rotate_ccw_kb || raw_drop_kb || raw_hold_kb) begin
+                
+                // Increment watchdog (but only if a key is held)
+                if (watchdog_counter < 20'd750000) begin  // 30 seconds at 25MHz
+                    watchdog_counter <= watchdog_counter + 1;
+                    watchdog_timeout <= 0;
+                end else begin
+                    // Timeout! Key has been held for 30+ seconds - must be stuck
+                    watchdog_timeout <= 1;
+                end
+            end else begin
+                // No keys held - reset watchdog
+                watchdog_counter <= 0;
+                watchdog_timeout <= 0;
+            end
+            
+            // If watchdog times out, clear ALL keyboard states
+            if (watchdog_timeout) begin
+                raw_left_kb <= 0;
+                raw_right_kb <= 0;
+                raw_down_kb <= 0;
+                raw_rotate_cw_kb <= 0;
+                raw_rotate_ccw_kb <= 0;
+                raw_drop_kb <= 0;
+                raw_hold_kb <= 0;
+            end
+        end
+    end
+
     // Debounce Buttons (use separate debouncer for buttons, different timing)
     logic btn_l_db, btn_r_db, btn_u_db, btn_d_db, btn_c_db;
     logic unused_db;
