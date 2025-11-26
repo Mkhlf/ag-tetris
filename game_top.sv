@@ -265,6 +265,46 @@ module game_top(
         .total_lines_cleared_out(total_lines_cleared)
     );
 
+
+    // ========================================================================
+    // CDC: Game State Synchronization (game_clk → pix_clk)
+    // ========================================================================
+    field_t display_field_sync;
+    logic [31:0] score_sync;
+    logic game_over_sync;
+    tetromino_ctrl t_next_sync, t_hold_sync, t_curr_sync;
+    logic hold_used_sync;
+    logic [3:0] current_level_sync;
+    logic [7:0] total_lines_cleared_sync;
+    logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y_sync;
+
+    // Double-register synchronizer for multi-bit buses
+    always_ff @(posedge pix_clk) begin
+        if (rst) begin
+            display_field_sync <= '0;
+            score_sync <= 0;
+            game_over_sync <= 0;
+            t_next_sync <= '0;
+            t_hold_sync <= '0;
+            t_curr_sync <= '0;
+            hold_used_sync <= 0;
+            current_level_sync <= 0;
+            total_lines_cleared_sync <= 0;
+            ghost_y_sync <= 0;
+        end else begin
+            display_field_sync <= display_field;
+            score_sync <= score;
+            game_over_sync <= game_over;
+            t_next_sync <= t_next;
+            t_hold_sync <= t_hold;
+            t_curr_sync <= t_curr;
+            hold_used_sync <= hold_used;
+            current_level_sync <= current_level;
+            total_lines_cleared_sync <= total_lines_cleared;
+            ghost_y_sync <= ghost_y;
+        end
+    end
+
     // VGA Output (Raw)
     logic [10:0] curr_x_raw;
     logic [9:0]  curr_y_raw;
@@ -298,31 +338,35 @@ module game_top(
     logic hsync_pipelined, vsync_pipelined;
 
     draw_tetris draw_inst (
-        .clk(pix_clk),
-        .curr_x(curr_x_raw),
-        .curr_y(curr_y_raw),
-        .active_area(active_area_raw),
-        .hsync_in(hsync_raw),
-        .vsync_in(vsync_raw),
-        .display(display_field),
-        .score(score),
-        .game_over(game_over),
-        .t_next(t_next),
-        .t_hold(t_hold),
-        .hold_used(hold_used),
-        .current_level(current_level),
-        .ghost_y(ghost_y),
-        .t_curr(t_curr),
-        .total_lines_cleared(total_lines_cleared), // NEW
-        .sprite_addr_x(sprite_addr_x),
-        .sprite_addr_y(sprite_addr_y),
-        .sprite_pixel(sprite_pixel),
-        .vga_r(vga_r_raw),
-        .vga_g(vga_g_raw),
-        .vga_b(vga_b_raw),
-        .hsync_out(hsync_pipelined),
-        .vsync_out(vsync_pipelined)
-    );
+    .clk(pix_clk),
+    .curr_x(curr_x_raw),
+    .curr_y(curr_y_raw),
+    .active_area(active_area_raw),
+    .hsync_in(hsync_raw),
+    .vsync_in(vsync_raw),
+
+    .display(display_field_sync),        // ← Use synchronized
+    .score(score_sync),                  // ← Use synchronized
+    .game_over(game_over_sync),          // ← Use synchronized
+    .t_next(t_next_sync),                // ← Use synchronized
+    .t_hold(t_hold_sync),                // ← Use synchronized
+    .hold_used(hold_used_sync),          // ← Use synchronized
+    .current_level(current_level_sync),  // ← Use synchronized
+    .total_lines_cleared(total_lines_cleared_sync), // ← Use synchronized
+    .ghost_y(ghost_y_sync),              // ← Use synchronized
+    .t_curr(t_curr_sync),                // ← Use synchronized
+
+    .sprite_addr_x(sprite_addr_x),
+    .sprite_addr_y(sprite_addr_y),
+    .sprite_pixel(sprite_pixel),
+
+    .vga_r(vga_r_raw),
+    .vga_g(vga_g_raw),
+    .vga_b(vga_b_raw),
+    
+    .hsync_out(hsync_pipelined),
+    .vsync_out(vsync_pipelined)
+);
 
     // Output Pipeline (Final Stage)
     // We keep this stage for clean output timing, effectively making it a 4-stage pipeline.
