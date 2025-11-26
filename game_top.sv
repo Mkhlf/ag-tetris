@@ -262,11 +262,7 @@ module game_top(
         .current_level_out(current_level),
         .ghost_y(ghost_y),
         .t_curr_out(t_curr),
-        .total_lines_cleared_out(total_lines_cleared), // NEW
-
-
-        .t_curr_out(t_curr),
-        .total_lines_cleared_out(total_lines_cleared) // NEW
+        .total_lines_cleared_out(total_lines_cleared)
     );
 
     // VGA Output (Raw)

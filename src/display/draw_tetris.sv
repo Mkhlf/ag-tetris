@@ -19,9 +19,6 @@ module draw_tetris(
     input  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
     input  tetromino_ctrl  t_curr, // Current piece for ghost rendering
 
-    input  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
-    input  tetromino_ctrl  t_curr, // Current piece for ghost rendering
-    
     // Sprite Interface
     output logic [3:0]     sprite_addr_x,
     output logic [3:0]     sprite_addr_y,
@@ -106,9 +103,6 @@ module draw_tetris(
         .pos_x(SIDE_X_START),
         .pos_y(SCORE_Y_START + 40), // Below label
         .number(score),
-        .pixel_on(score_pixel_on)
-    );
-    
         .pixel_on(score_pixel_on)
     );
     
