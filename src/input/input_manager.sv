@@ -27,6 +27,7 @@ module input_manager (
   // Parameters for DAS (Delayed Auto Shift) - modern Tetris feel
   localparam DAS_DELAY = 6; // Frames before auto-repeat
   localparam DAS_SPEED = 2;  // Frames between repeats
+  localparam SOFT_DROP_SPEED = 0;  // 0 = every frame (instant)
   
   // Timers and edge detectors
   logic [5:0] timer_left, timer_right, timer_down;
@@ -96,15 +97,12 @@ module input_manager (
         end
         prev_right <= raw_right;
         
-        // --- DOWN ---
-        // Down usually has faster DAS or just continuous
         if (raw_down) begin
             if (!prev_down) begin
                 cmd_down <= 1;
                 timer_down <= 0;
             end else if (tick_game) begin
-                // Fast repeat for down (e.g., every 2 frames)
-                if (timer_down >= 2) begin
+                if (timer_down >= SOFT_DROP_SPEED) begin
                     cmd_down <= 1;
                     timer_down <= 0;
                 end else begin
