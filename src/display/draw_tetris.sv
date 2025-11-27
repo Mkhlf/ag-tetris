@@ -3,7 +3,7 @@
 module draw_tetris(
     input  wire logic clk,
     input  wire logic rst,
-    
+
     input  wire logic [10:0] curr_x,
     input  wire logic [9:0]  curr_y,
     input  wire logic active_area,
@@ -204,6 +204,15 @@ module draw_tetris(
         render_level_chars[4] = 8'h4C; // L
         render_level_chars[5] = 8'h3A; // :
         render_level_chars[6] = 8'h20; // Space
+        render_level_chars[7] = 8'h20; // Space (default)
+        render_level_chars[8] = 8'h20; // Space (default)
+        render_level_chars[9] = 8'h20;
+        render_level_chars[10] = 8'h20;
+        render_level_chars[11] = 8'h20;
+        render_level_chars[12] = 8'h20;
+        render_level_chars[13] = 8'h20;
+        render_level_chars[14] = 8'h20;
+        render_level_chars[15] = 8'h20;
         
         if (current_level < 10) begin
             render_level_chars[7] = 8'h30 + current_level;
@@ -214,10 +223,6 @@ module draw_tetris(
             render_level_len = 9;
         end
         
-        // Fill rest with spaces
-        for (int i = render_level_len; i < 16; i++) begin
-            render_level_chars[i] = 8'h20;
-        end
     end
 
     draw_string_line level_renderer (
@@ -231,70 +236,88 @@ module draw_tetris(
         .pixel_on(render_level_pixel)
     );
 
-    // State machine to render text to bitmaps once per frame
-    always_ff @(posedge clk) begin
-        if (rst) begin
-            tr_state <= TR_IDLE;
-            tr_y_counter <= 0;
-            tr_x_counter <= 0;
-        end else begin
-            case (tr_state)
-                TR_IDLE: begin
-                    if (frame_start) begin
-                        tr_state <= TR_SCORE;
+    // State machine to render text to bitmaps once per frame (PIPELINED)
+always_ff @(posedge clk) begin
+    if (rst) begin
+        tr_state <= TR_IDLE;
+        tr_y_counter <= 0;
+        tr_x_counter <= 0;
+        render_curr_x <= 0;
+        render_curr_y <= 0;
+    end else begin
+        case (tr_state)
+            TR_IDLE: begin
+                if (frame_start) begin
+                    tr_state <= TR_SCORE;
+                    tr_y_counter <= 0;
+                    tr_x_counter <= 0;
+                    // Prime the pipeline
+                    render_curr_x <= 0;
+                    render_curr_y <= 0;
+                end
+            end
+            
+            TR_SCORE: begin
+                // PIPELINE: Set coordinates this cycle, store result NEXT cycle
+                // (Text modules process combinationally, result available next clock)
+                
+                // Store the result from PREVIOUS cycle
+                if (tr_x_counter > 0 || tr_y_counter > 0) begin
+                    score_text_bitmap[tr_y_counter][tr_x_counter] <= render_score_pixel;
+                end
+                
+                // Advance to next pixel and set coordinates for NEXT cycle
+                if (tr_x_counter < 199) begin
+                    tr_x_counter <= tr_x_counter + 1;
+                    render_curr_x <= tr_x_counter + 1;
+                    render_curr_y <= tr_y_counter;
+                end else begin
+                    tr_x_counter <= 0;
+                    render_curr_x <= 0;
+                    if (tr_y_counter < 59) begin
+                        tr_y_counter <= tr_y_counter + 1;
+                        render_curr_y <= tr_y_counter + 1;
+                    end else begin
+                        // Done with score, move to level
+                        tr_state <= TR_LEVEL;
                         tr_y_counter <= 0;
                         tr_x_counter <= 0;
+                        render_curr_x <= 0;
+                        render_curr_y <= 0;
                     end
                 end
-                
-                TR_SCORE: begin
-                    // Render one row per clock cycle
-                    render_curr_x <= tr_x_counter;
-                    render_curr_y <= tr_y_counter;
-                    
-                    // Store rendered pixel
-                    score_text_bitmap[tr_y_counter][tr_x_counter] <= render_score_pixel;
-                    
-                    // Advance to next pixel
-                    if (tr_x_counter < 199) begin
-                        tr_x_counter <= tr_x_counter + 1;
-                    end else begin
-                        tr_x_counter <= 0;
-                        if (tr_y_counter < 59) begin
-                            tr_y_counter <= tr_y_counter + 1;
-                        end else begin
-                            // Done with score, move to level
-                            tr_state <= TR_LEVEL;
-                            tr_y_counter <= 0;
-                            tr_x_counter <= 0;
-                        end
-                    end
-                end
-                
-                TR_LEVEL: begin
-                    render_curr_x <= tr_x_counter;
-                    render_curr_y <= tr_y_counter;
-                    
+            end
+            
+            TR_LEVEL: begin
+                // Store result from previous cycle
+                if (tr_x_counter > 0 || tr_y_counter > 0) begin
                     level_text_bitmap[tr_y_counter][tr_x_counter] <= render_level_pixel;
-                    
-                    if (tr_x_counter < 199) begin
-                        tr_x_counter <= tr_x_counter + 1;
-                    end else begin
-                        tr_x_counter <= 0;
-                        if (tr_y_counter < 19) begin
-                            tr_y_counter <= tr_y_counter + 1;
-                        end else begin
-                            tr_state <= TR_DONE;
-                        end
-                    end
                 end
                 
-                TR_DONE: begin
-                    tr_state <= TR_IDLE; // Wait for next frame
+                // Advance and set coordinates for next cycle
+                if (tr_x_counter < 199) begin
+                    tr_x_counter <= tr_x_counter + 1;
+                    render_curr_x <= tr_x_counter + 1;
+                    render_curr_y <= tr_y_counter;
+                end else begin
+                    tr_x_counter <= 0;
+                    render_curr_x <= 0;
+                    if (tr_y_counter < 19) begin
+                        tr_y_counter <= tr_y_counter + 1;
+                        render_curr_y <= tr_y_counter + 1;
+                    end else begin
+                        tr_state <= TR_DONE;
+                    end
                 end
-            endcase
-        end
+            end
+            
+            TR_DONE: begin
+                tr_state <= TR_IDLE; // Wait for next frame
+            end
+        endcase
     end
+end
+
 
     // ======================================================================================
     // FAST TEXT LOOKUP (replaces Stage 1.5, 1.75 entirely)

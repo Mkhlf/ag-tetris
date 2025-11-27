@@ -25,8 +25,8 @@ module input_manager (
   );
 
   // Parameters for DAS (Delayed Auto Shift) - modern Tetris feel
-  localparam DAS_DELAY = 10; // Frames before auto-repeat
-  localparam DAS_SPEED = 3;  // Frames between repeats
+  localparam DAS_DELAY = 6; // Frames before auto-repeat
+  localparam DAS_SPEED = 2;  // Frames between repeats
   
   // Timers and edge detectors
   logic [5:0] timer_left, timer_right, timer_down;
