@@ -18,7 +18,6 @@ module tb_lock_delay;
     logic hold_used_out;
     logic [3:0] current_level_out;
     logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y;
-    logic spin_t_flag, spin_s_flag, spin_z_flag, spin_j_flag, spin_l_flag, spin_i_flag, is_mini_spin, tetris_flag;
     logic [7:0] total_lines_cleared_out;
 
     // Instantiate game_control
@@ -43,14 +42,6 @@ module tb_lock_delay;
         .current_level_out(current_level_out),
         .ghost_y(ghost_y),
         .t_curr_out(t_curr_out),
-        .spin_t_flag(spin_t_flag),
-        .spin_s_flag(spin_s_flag),
-        .spin_z_flag(spin_z_flag),
-        .spin_j_flag(spin_j_flag),
-        .spin_l_flag(spin_l_flag),
-        .spin_i_flag(spin_i_flag),
-        .is_mini_spin(is_mini_spin),
-        .tetris_flag(tetris_flag),
         .total_lines_cleared_out(total_lines_cleared_out)
     );
 

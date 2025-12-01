@@ -18,7 +18,7 @@ module tb_hold_feature;
     logic tick_game;
     
     // Inputs
-    logic key_left, key_right, key_down, key_rotate, key_drop, key_hold;
+    logic key_left, key_right, key_down, key_rotate_cw, key_rotate_ccw, key_drop, key_hold;
     logic key_drop_held;
     
     // Outputs
@@ -31,6 +31,7 @@ module tb_hold_feature;
     logic [3:0] current_level_out;
     logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y;
     tetromino_ctrl t_curr_out;
+    logic [7:0] total_lines_cleared_out;
     
     int pass_count = 0;
     int fail_count = 0;
@@ -43,7 +44,8 @@ module tb_hold_feature;
         .key_left(key_left),
         .key_right(key_right),
         .key_down(key_down),
-        .key_rotate(key_rotate),
+        .key_rotate_cw(key_rotate_cw),
+        .key_rotate_ccw(key_rotate_ccw),
         .key_drop(key_drop),
         .key_hold(key_hold),
         .key_drop_held(key_drop_held),
@@ -55,7 +57,8 @@ module tb_hold_feature;
         .hold_used_out(hold_used_out),
         .current_level_out(current_level_out),
         .ghost_y(ghost_y),
-        .t_curr_out(t_curr_out)
+        .t_curr_out(t_curr_out),
+        .total_lines_cleared_out(total_lines_cleared_out)
     );
 
     // Clock: 100MHz
@@ -108,7 +111,7 @@ module tb_hold_feature;
         rst = 1;
         tick_game = 0;
         key_left = 0; key_right = 0; key_down = 0;
-        key_rotate = 0; key_drop = 0; key_hold = 0;
+        key_rotate_cw = 0; key_rotate_ccw = 0; key_drop = 0; key_hold = 0;
         key_drop_held = 0;
         
         $display("===========================================");

@@ -1,3 +1,4 @@
+// Note this module is not used in the project, but is kept for reference. 
 `include "../GLOBAL.sv"
 
 module rotate_clockwise (
