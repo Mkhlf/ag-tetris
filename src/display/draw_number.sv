@@ -1,5 +1,6 @@
+// draw_number: renders up to eight hexadecimal digits at a given origin using
+// a compact 4x5 bitmap font scaled for display overlays.
 `include "../GLOBAL.sv"
-
 module draw_number (
     input  logic [10:0] curr_x,
     input  logic [9:0]  curr_y,
@@ -8,12 +9,6 @@ module draw_number (
     input  logic [31:0] number,
     output logic        pixel_on
 );
-    // Simple 7-segment style font or similar
-    // For simplicity, let's just draw a bar for now or a very simple bitmapped font.
-    // Implementing a full font ROM here is complex.
-    // Let's use a 4x5 font for digits 0-9.
-    
-    // Font ROM (Combinational for Synthesis Safety)
     logic [19:0] current_glyph;
     
     always_comb begin
@@ -32,18 +27,9 @@ module draw_number (
         endcase
     end
     
-    // We can draw up to 8 digits.
-    // number is 32-bit.
-    // Let's iterate? No, combinatorial.
-    // We need to determine which digit we are in.
-    
     logic [3:0] digit;
     logic [2:0] dx, dy; // 0-4
     logic [3:0] digit_idx; // 0-7
-    
-    // Each digit is 4x5 pixels, plus 1 pixel spacing. Total 5x5.
-    // Total width for 8 digits = 40 pixels.
-    // Let's scale it up by 4x. 20x20 pixels per digit.
     
     localparam SCALE = 4;
     localparam DIGIT_W = 4 * SCALE;
@@ -67,12 +53,6 @@ module draw_number (
             dy = rel_y / SCALE;
             
             if (dx < 4 && dy < 5) begin
-                // Extract digit
-                // This is hard combinatorially (division/mod).
-                // Let's just show the lower 4 hex digits for score? Or decimal?
-                // Decimal is hard. Hex is easier.
-                // Let's do Hex for now.
-                
                 case (7 - digit_idx)
                     0: digit = number[3:0];
                     1: digit = number[7:4];
@@ -83,14 +63,6 @@ module draw_number (
                     6: digit = number[27:24];
                     7: digit = number[31:28];
                 endcase
-                
-                // Check font (only 0-9 defined above, need A-F)
-                // For now, if > 9, just show nothing or map to 0-9?
-                // Let's add A-F.
-                // But wait, score is usually decimal.
-                // Implementing binary-to-BCD in hardware is expensive for 32-bit.
-                // Let's assume score is small enough or just show Hex.
-                // Or just show the number of lines cleared?
                 
                 if (digit < 10) begin
                    if (current_glyph[19 - (dy*4 + dx)]) pixel_on = 1;

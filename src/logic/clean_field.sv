@@ -1,3 +1,7 @@
+/* clean_field
+ * Sequential row clearer: scans for full rows, shifts above content downward,
+ * counts cleared lines, and exposes the updated field when done.
+ */
 `include "../GLOBAL.sv"
 
 module clean_field (
@@ -9,14 +13,12 @@ module clean_field (
     output  logic       done
   );
 
-  // Simple state machine to iterate rows
   typedef enum logic [1:0] {IDLE, CHECK, SHIFT, FINISH} state_t;
   state_t state = IDLE;
 
   integer row, col, k;
   logic row_full;
   
-  // We need internal storage for the field as we modify it
   field_t f_temp;
 
   always_ff @(posedge clk) begin
@@ -28,17 +30,16 @@ module clean_field (
         case (state)
             IDLE: begin
                 f_temp <= f_in;
-                row <= `FIELD_VERTICAL - 1; // Start from bottom
+                row <= `FIELD_VERTICAL - 1;
                 lines_cleared <= 0;
                 done <= 0;
                 state <= CHECK;
             end
 
             CHECK: begin
-                if (row < 0) begin
+            if (row < 0) begin
                     state <= FINISH;
                 end else begin
-                    // Check if row is full
                     row_full = 1;
                     for (col = 0; col < `FIELD_HORIZONTAL; col++) begin
                         if (f_temp.data[row][col].data == `TETROMINO_EMPTY) begin
@@ -56,20 +57,15 @@ module clean_field (
             end
 
             SHIFT: begin
-                // Shift everything down into 'row'
-                // Fix: Use fixed loop bounds for synthesis
-                // Iterate through all rows, but only shift if we are at or above the cleared row
                 for (k = `FIELD_VERTICAL - 1; k > 0; k--) begin
                     if (k <= row) begin
                         f_temp.data[k] <= f_temp.data[k-1];
                     end
                 end
-                // Clear top row
                 for (col = 0; col < `FIELD_HORIZONTAL; col++) begin
                     f_temp.data[0][col].data <= `TETROMINO_EMPTY;
                 end
                 
-                // Stay on same row index to check the new row that fell into place
                 state <= CHECK;
             end
 

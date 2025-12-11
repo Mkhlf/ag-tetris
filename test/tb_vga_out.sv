@@ -1,5 +1,8 @@
 `timescale 1ns / 1ps
 
+/* tb_vga_out
+ * Drives vga_out through reset and a short run to sanity-check sync/active signals.
+ */
 module tb_vga_out;
 
     logic clk;
@@ -20,7 +23,6 @@ module tb_vga_out;
         .active_area(active_area)
     );
 
-    // Clock Generation (83.46 MHz approx period 12ns)
     initial begin
         clk = 0;
         forever #6 clk = ~clk;

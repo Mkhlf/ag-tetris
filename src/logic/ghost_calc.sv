@@ -1,3 +1,6 @@
+/* ghost_calc
+ * Computes the ghost landing row by scanning downward until collision.
+ */
 `include "../GLOBAL.sv"
 
 module ghost_calc (
@@ -8,10 +11,6 @@ module ghost_calc (
 
   logic isValid;
   integer offset;
-  
-  // We need to check validity for multiple positions.
-  // Since we can't instantiate modules in a loop, we implement the check logic directly here.
-  // This is a combinational search.
   
   logic [1:0] currRotation;
   assign currRotation = t_curr.rotation;

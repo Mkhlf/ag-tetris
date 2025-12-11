@@ -1,6 +1,9 @@
 `timescale 1ns / 1ps
-`include "../GLOBAL.sv"
+`include "GLOBAL.sv"
 
+/* tb_debug_start
+ * Simple trace bench for game_control: logs states, pieces, ghost, and hold.
+ */
 module tb_debug_start;
 
     logic clk;
@@ -9,7 +12,6 @@ module tb_debug_start;
     logic key_left, key_right, key_down, key_rotate_cw, key_rotate_ccw, key_drop, key_hold;
     logic key_drop_held;
     
-    // Outputs
     field_t display;
     logic [31:0] score;
     logic game_over;
@@ -21,7 +23,6 @@ module tb_debug_start;
     tetromino_ctrl t_curr_out;
     logic [7:0] total_lines_cleared_out;
     
-    // Instantiate game_control
     game_control uut (
         .clk(clk),
         .rst(rst),
@@ -46,7 +47,7 @@ module tb_debug_start;
         .total_lines_cleared_out(total_lines_cleared_out)
     );
     
-    always #5 clk = ~clk; // 100MHz
+    always #5 clk = ~clk;
 
     // Helper to count bits set in tetromino
     function integer count_bits(input tetromino_t t);

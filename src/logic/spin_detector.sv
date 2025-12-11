@@ -1,3 +1,7 @@
+/* spin_detector
+ * Detects spin events (T, S, Z, J, L, I) using the last rotation flag,
+ * applied kick, and surrounding field occupancy.
+ */
 `include "../GLOBAL.sv"
 module spin_detector (
     input   tetromino_ctrl  t_ctrl,
@@ -13,14 +17,12 @@ module spin_detector (
     output  logic           is_l_spin,
     output  logic           is_i_spin
 );
-    // Center position (all 3-wide pieces have center at bounding box (1,1))
     logic signed [`FIELD_HORIZONTAL_WIDTH:0] cx;
     logic signed [`FIELD_VERTICAL_WIDTH:0] cy;
     
     assign cx = t_ctrl.coordinate.x + 1;
     assign cy = t_ctrl.coordinate.y + 1;
 
-    // Helper function to check if a position is blocked
     function automatic logic is_blocked(
         input logic signed [`FIELD_HORIZONTAL_WIDTH:0] x,
         input logic signed [`FIELD_VERTICAL_WIDTH:0] y
@@ -46,7 +48,6 @@ module spin_detector (
                     logic [3:0] corners_filled;
                     logic [1:0] front_corners_filled;
                     
-                    // Check corners around CENTER (not bounding box corner)
                     corners_filled[0] = is_blocked(cx - 1, cy - 1);
                     corners_filled[1] = is_blocked(cx + 1, cy - 1);
                     corners_filled[2] = is_blocked(cx - 1, cy + 1);

@@ -1,15 +1,9 @@
 `timescale 1ns / 1ps
-`include "../GLOBAL.sv"
+`include "GLOBAL.sv"
 
-//////////////////////////////////////////////////////////////////////////////////
-// Hold Feature Testbench
-// Tests the complete hold piece functionality including:
-// - First hold (empty slot)
-// - Hold swap (piece in slot)
-// - Hold lockout (can't hold twice per piece)
-// - Hold reset after piece placement
-//////////////////////////////////////////////////////////////////////////////////
-
+/* tb_hold_feature
+ * End-to-end checks of hold behavior: initial empty, store, swap, lockout, reset.
+ */
 module tb_hold_feature;
 
     // Clock and Reset
@@ -61,7 +55,6 @@ module tb_hold_feature;
         .total_lines_cleared_out(total_lines_cleared_out)
     );
 
-    // Clock: 100MHz
     always #5 clk = ~clk;
     
     // Piece name helper

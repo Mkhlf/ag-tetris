@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
-
+// block_sprite: 16x16 ROM-backed sprite for a beveled block tile, returning
+// a 12-bit RGB pixel for the requested x/y address.
 module block_sprite(
     input  wire logic clk,
     input  wire logic [3:0] addr_x, // 0-15
@@ -7,19 +8,6 @@ module block_sprite(
     output logic [11:0] pixel_out   // 12-bit RGB
     );
 
-    // 16x16 sprite = 256 pixels.
-    // We can use a case statement or a 1D array.
-    
-    // Simple "Bevelled" block design
-    // Border: Darker
-    // Center: Lighter
-    
-    // Let's make a generic white/grey block, and we can tint it in the draw module.
-    // Or just return a single color and let draw module decide color?
-    // The requirement says "Use of sprites from a memory block".
-    // Usually this implies the sprite has texture.
-    // Let's store a texture.
-    
     (* rom_style = "block" *) logic [11:0] rom [0:255];
 
     initial begin

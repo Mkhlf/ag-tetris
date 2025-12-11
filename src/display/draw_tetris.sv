@@ -1,3 +1,6 @@
+// draw_tetris: VGA renderer for the Tetris UI. Pipelines coordinates through
+// region detection, text prerendering, block/ghost drawing, and final color
+// mapping for the grid, next/hold previews, score, level, and heartbeat.
 `include "../GLOBAL.sv"
 
 module draw_tetris(
@@ -10,7 +13,6 @@ module draw_tetris(
     input  wire logic hsync_in,
     input  wire logic vsync_in,
     
-    // New Interface: Just the display field
     input   field_t     display,
     input  logic [31:0]    score,
     input  logic           game_over,
@@ -19,11 +21,9 @@ module draw_tetris(
     input  logic           hold_used, // Whether hold was used this piece
     input  logic [3:0]     current_level, // Game level
     input  logic [7:0]     total_lines_cleared, // NEW: For level bar
-    // Ghost pieces 
     input  logic signed [`FIELD_VERTICAL_WIDTH : 0] ghost_y,
     input  tetromino_ctrl  t_curr, // Current piece for ghost rendering
     
-    // Sprite Interface
     output logic [3:0]     sprite_addr_x,
     output logic [3:0]     sprite_addr_y,
     input  logic [11:0]    sprite_pixel,

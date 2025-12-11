@@ -1,6 +1,9 @@
 `timescale 1ns / 1ps
-`include "../GLOBAL.sv"
+`include "GLOBAL.sv"
 
+/* tb_ps2_keyboard
+ * Feeds ps2_keyboard with make/break sequences and checks decoded events.
+ */
 module tb_ps2_keyboard;
 
     logic clk;
@@ -30,26 +33,22 @@ module tb_ps2_keyboard;
         integer i;
         logic parity;
         begin
-            parity = ^data; // Odd parity
+            parity = ^data;
             
-            // Start bit
             ps2_data = 0;
             #20000 ps2_clk = 0;
             #20000 ps2_clk = 1;
             
-            // Data bits
             for (i = 0; i < 8; i = i + 1) begin
                 ps2_data = data[i];
                 #20000 ps2_clk = 0;
                 #20000 ps2_clk = 1;
             end
             
-            // Parity bit
             ps2_data = parity;
             #20000 ps2_clk = 0;
             #20000 ps2_clk = 1;
             
-            // Stop bit
             ps2_data = 1;
             #20000 ps2_clk = 0;
             #20000 ps2_clk = 1;
@@ -58,14 +57,11 @@ module tb_ps2_keyboard;
         end
     endtask
     
-    // Wait for key_event_valid pulse (now extended to 4 cycles)
     task wait_for_event;
         begin
-            // Wait up to 10000 cycles for event to start
             repeat(10000) begin
                 @(posedge clk);
                 if (key_event_valid) begin
-                    // Event detected - wait for it to finish (4+ cycles)
                     repeat(10) @(posedge clk);
                     return;
                 end
@@ -92,8 +88,6 @@ module tb_ps2_keyboard;
         send_ps2_byte(8'h1C);
         wait_for_event();
         
-        // Note: Don't check key_event_valid here - the pulse has ended by now
-        // The scan_code and make_break values are latched and should be correct
         if (current_scan_code == 8'h1C && current_make_break == 1) begin
             $display("  PASS: Key Press Detected (Code: %h, State: Make)", current_scan_code);
             pass_count++;

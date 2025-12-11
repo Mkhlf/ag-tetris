@@ -1,3 +1,8 @@
+/* game_control
+ * Central gameplay FSM: spawns pieces, processes movement/rotation with kicks,
+ * manages holds, scoring/levels, line clears, ghost piece, and exposes display
+ * signals plus status outputs.
+ */
 `include "../GLOBAL.sv"
 
 module game_control (
@@ -28,7 +33,6 @@ module game_control (
     output  logic [7:0]     total_lines_cleared_out // Exposed for level bar
   );
 
-  // States
   typedef enum logic [3:0] {
     GEN,
     GEN_WAIT,
@@ -49,7 +53,6 @@ module game_control (
   
   state_t ps, ns;
   
-  // Internal Signals
   tetromino_ctrl t_curr, t_curr_cand, t_gen, t_gen_next;
   tetromino_ctrl t_check;
   tetromino_ctrl t_hold;
@@ -57,7 +60,6 @@ module game_control (
   logic hold_used;
   logic hold_empty;
   
-  // Scoring & Level Tracking
   logic [7:0] total_lines_cleared;
   logic [3:0] consecutive_clears;
   
@@ -68,14 +70,12 @@ module game_control (
   logic clean_done;
   logic [2:0] lines_cleared;
   
-  // Rotation & Kick System
   logic [2:0] kick_attempt;
   logic rotate_direction;
   logic [1:0] rotation_from;
-  logic last_move_was_rotation;  // NEW: Track if last lock was from rotation
-  logic [2:0] kick_used;         // NEW: Which kick succeeded (0-4)
+  logic last_move_was_rotation;
+  logic [2:0] kick_used;
   
-  // Spin Detection
   logic is_t_spin;
   logic is_t_spin_mini;
   logic is_s_spin;
@@ -84,10 +84,12 @@ module game_control (
   logic is_l_spin;
   logic is_i_spin;
   
-  // Level & Speed Logic
   logic [3:0] current_level = 0;
   logic [31:0] drop_speed_frames;
 
+  // Derive current level from total cleared lines (capped at 15) and map to
+  // the drop delay expressed in game ticks. Keep this combinational to avoid
+  // hidden latches on the level or speed calculation.
   always_comb begin
 
     if (current_level != 15) current_level = total_lines_cleared / 10;
@@ -113,13 +115,7 @@ module game_control (
     endcase
   end
   
-  // =================================================================
-  // SRS KICK TABLES
-  // =================================================================
-  
-  // =================================================================
-// SRS KICK TABLES (Corrected for Y-down coordinate system)
-// =================================================================
+  // SRS KICK TABLES (Corrected for Y-down coordinate system)
 
 localparam kick_offset_t JLSTZ_KICKS_CW[4][5] = '{
     // 0→R
@@ -280,7 +276,7 @@ localparam kick_offset_t I_KICKS_CCW[4][5] = '{
         MOVE_RIGHT: t_check.coordinate.x = t_curr.coordinate.x + 1;
         DOWN: t_check.coordinate.y = t_curr.coordinate.y + 1;
         HARD_DROP: t_check.coordinate.y = t_curr.coordinate.y + 1;
-            IDLE: t_check.coordinate.y = t_curr.coordinate.y + 1; 
+        IDLE: t_check.coordinate.y = t_curr.coordinate.y + 1; 
         ROTATE: begin
             t_check = t_rotated;
             t_check.coordinate.x = t_rotated.coordinate.x + current_kick.x;
@@ -507,12 +503,6 @@ localparam kick_offset_t I_KICKS_CCW[4][5] = '{
     end else begin
         ps <= ns;
         
-        // Timer Logic
-        // if (tick_game) begin
-        //     if (ps == IDLE) drop_timer <= drop_timer + 1;
-        // end
-
-        // Timer Logic
         if (tick_game) begin
             if (ps == IDLE) begin
                 if (valid) begin
@@ -558,6 +548,7 @@ localparam kick_offset_t I_KICKS_CCW[4][5] = '{
             GEN_WAIT: begin
                 t_curr <= t_gen;
                 lock_timer <= 0;
+                hold_used <= 0;      // new piece allows hold again
             end
             
             DROP_LOCKOUT: begin

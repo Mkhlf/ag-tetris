@@ -1,0 +1,45 @@
+===========================================
+       HOLD FEATURE TESTBENCH
+===========================================
+
+Test 1: Initial State
+  PASS: Hold slot is empty at start
+  PASS: hold_used is false at start
+
+Test 2: First Hold (Empty -> Store)
+  Current piece before hold: J (1)
+  After hold: curr=O, hold=J, hold_used=1
+  PASS: First piece stored in hold
+  PASS: hold_used set after first hold
+
+Test 3: Hold Lockout (Cannot Hold Twice Per Piece)
+  Attempting second hold while hold_used=1...
+  PASS: Lockout prevented second hold
+
+Test 4: Hold Reset After Piece Placement
+INFO: [USF-XSim-96] XSim completed. Design snapshot 'tb_hold_feature_behav' loaded.
+INFO: [USF-XSim-97] XSim simulation ran for 1000ns
+launch_simulation: Time (s): cpu = 00:00:24 ; elapsed = 00:00:12 . Memory (MB): peak = 8409.602 ; gain = 757.141 ; free physical = 1013473 ; free virtual = 1028701
+run 5 s
+  PASS: hold_used reset after drop
+
+Test 5: Hold Swap
+  Before swap: curr=I, hold=J
+  After swap:  curr=J, hold=I
+  PASS: Swap successful
+
+Test 6: Multiple Game Cycles
+  PASS: Multiple game cycles completed
+
+Test 7: Swapped Piece Position Reset
+  PASS: Swapped piece at spawn position (3, 0)
+
+===========================================
+           TEST SUMMARY
+===========================================
+Passed: 9
+Failed: 0
+ALL TESTS PASSED!
+===========================================
+
+$finish called at time : 4795 ns : File "/home/alkhalmr/gtprj/ag-tetris/test/tb_hold_feature.sv" Line 306

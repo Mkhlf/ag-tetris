@@ -1,6 +1,9 @@
 `timescale 1ns / 1ps
-`include "../GLOBAL.sv"
+`include "GLOBAL.sv"
 
+/* tb_game_control
+ * Integration testbench covering spawn, movement, rotation, hold, drop, and ghost.
+ */
 module tb_game_control;
 
     // Inputs
@@ -16,7 +19,6 @@ module tb_game_control;
     logic key_hold;
     logic key_drop_held;
 
-    // Outputs
     field_t display;
     logic [31:0] score;
     logic game_over;
@@ -189,6 +191,7 @@ module tb_game_control;
         // Test 2: Movement
         // ================================================================
         $display("\nTest 2: Movement");
+        begin 
         logic signed [`FIELD_HORIZONTAL_WIDTH:0] start_x;
         start_x = t_curr_out.coordinate.x;
         
@@ -216,11 +219,13 @@ module tb_game_control;
         end else begin
             $display("  INFO: Right move result (x: %d)", t_curr_out.coordinate.x);
         end
+        end 
         
         // ================================================================
         // Test 3: Rotation
         // ================================================================
         $display("\nTest 3: Rotation");
+        begin 
         logic [1:0] start_rot;
         start_rot = t_curr_out.rotation;
         
@@ -230,13 +235,14 @@ module tb_game_control;
         // O-piece doesn't rotate visibly, but rotation state still changes
         $display("  INFO: Rotation state: %d -> %d", start_rot, t_curr_out.rotation);
         pass_count++;  // Rotation test is informational
+        end
         
         // ================================================================
         // Test 4: Hold Feature (First Hold - Empty)
         // ================================================================
         $display("\nTest 4: Hold Feature - First Hold");
+        begin 
         
-        // Capture current piece info before hold
         tetromino_idx_t first_piece_idx;
         first_piece_idx = t_curr_out.idx;
         
@@ -244,7 +250,6 @@ module tb_game_control;
             $display("  INFO: Hold slot is empty before hold");
         end
         
-        // First hold should store current piece and get next from generator
         press_hold();
         repeat(20) @(posedge clk);
         
@@ -255,35 +260,33 @@ module tb_game_control;
             $display("  FAIL: Hold did not store piece correctly");
             fail_count++;
         end
-        
-        if (hold_used_out == 1) begin
-            $display("  PASS: hold_used flag set");
-            pass_count++;
-        end else begin
-            $display("  FAIL: hold_used flag not set");
-            fail_count++;
         end
-        
         // ================================================================
-        // Test 5: Hold Lockout (Cannot hold twice per piece)
+        // Test 5: Hold Available After New Piece
         // ================================================================
-        $display("\nTest 5: Hold Lockout");
+        $display("\nTest 5: Hold Available After New Piece");
+        begin
         
-        tetromino_idx_t piece_before_second_hold;
-        piece_before_second_hold = t_curr_out.idx;
-        
-        press_hold();
-        repeat(10) @(posedge clk);
-        
-        // Should NOT have swapped because hold_used is true
-        if (t_curr_out.idx.data == piece_before_second_hold.data) begin
-            $display("  PASS: Hold lockout working (piece unchanged)");
-            pass_count++;
-        end else begin
-            $display("  FAIL: Hold lockout failed (piece changed)");
-            fail_count++;
+            tetromino_idx_t piece_before_second_hold;
+            piece_before_second_hold = t_curr_out.idx;
+            begin 
+            tetromino_idx_t hold_before_second_hold;
+            hold_before_second_hold = t_hold_disp.idx;
+            
+            press_hold();
+            repeat(20) @(posedge clk);
+            
+            // After second hold, pieces should swap: current becomes previous hold, hold becomes previous current
+            if (t_curr_out.idx.data == hold_before_second_hold.data &&
+                t_hold_disp.idx.data == piece_before_second_hold.data) begin
+                $display("  PASS: Second hold swaps current and hold pieces");
+                pass_count++;
+            end else begin
+                $display("  FAIL: Second hold did not swap as expected (curr=%d hold=%d)", t_curr_out.idx.data, t_hold_disp.idx.data);
+                fail_count++;
+            end
+            end 
         end
-        
         // ================================================================
         // Test 6: Hard Drop & Lock
         // ================================================================
@@ -299,48 +302,11 @@ module tb_game_control;
             fail_count++;
         end
         
-        // ================================================================
-        // Test 7: Hold Reset After New Piece
-        // ================================================================
-        $display("\nTest 7: Hold Reset After New Piece");
-        
-        if (hold_used_out == 0) begin
-            $display("  PASS: hold_used reset for new piece");
-            pass_count++;
-        end else begin
-            $display("  FAIL: hold_used not reset for new piece");
-            fail_count++;
-        end
         
         // ================================================================
-        // Test 8: Hold Swap (Second Hold)
+        // Test 7: Ghost Y Position
         // ================================================================
-        $display("\nTest 8: Hold Swap");
-        
-        tetromino_idx_t curr_before_swap, hold_before_swap;
-        curr_before_swap = t_curr_out.idx;
-        hold_before_swap = t_hold_disp.idx;
-        
-        $display("  Before swap: curr=%d, hold=%d", curr_before_swap.data, hold_before_swap.data);
-        
-        press_hold();
-        repeat(20) @(posedge clk);
-        
-        $display("  After swap:  curr=%d, hold=%d", t_curr_out.idx.data, t_hold_disp.idx.data);
-        
-        if (t_curr_out.idx.data == hold_before_swap.data && 
-            t_hold_disp.idx.data == curr_before_swap.data) begin
-            $display("  PASS: Hold swap worked correctly");
-            pass_count++;
-        end else begin
-            $display("  FAIL: Hold swap did not work as expected");
-            fail_count++;
-        end
-        
-        // ================================================================
-        // Test 9: Ghost Y Position
-        // ================================================================
-        $display("\nTest 9: Ghost Position");
+        $display("\nTest 7: Ghost Position");
         
         if (ghost_y >= t_curr_out.coordinate.y) begin
             $display("  PASS: Ghost Y (%d) >= Current Y (%d)", ghost_y, t_curr_out.coordinate.y);

@@ -1,10 +1,9 @@
 `timescale 1ns / 1ps
-`include "../GLOBAL.sv"
+`include "GLOBAL.sv"
 
-// NOTE: This testbench tests rotate_clockwise.sv which is marked as
-// "not used in the project" but kept for reference. The actual project
-// uses rotate_tetromino.sv with wall kick support.
-
+/* tb_rotate_clockwise
+ * Exercises the reference-only rotate_clockwise module for rotation updates.
+ */
 module tb_rotate_clockwise;
 
     logic clk;

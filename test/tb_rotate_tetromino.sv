@@ -1,6 +1,9 @@
 `timescale 1ns / 1ps
-`include "../GLOBAL.sv"
+`include "GLOBAL.sv"
 
+/* tb_rotate_tetromino
+ * Exercises rotate_tetromino CW/CCW wrap-around behavior.
+ */
 module tb_rotate_tetromino;
 
     logic clk;
@@ -21,7 +24,6 @@ module tb_rotate_tetromino;
         .done(done)
     );
 
-    // 100 MHz equivalent
     always #5 clk = ~clk;
 
     initial begin

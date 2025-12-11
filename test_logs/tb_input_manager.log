@@ -1,0 +1,49 @@
+source tb_input_manager.tcl
+# set curr_wave [current_wave_config]
+# if { [string length $curr_wave] == 0 } {
+#   if { [llength [get_objects]] > 0} {
+#     add_wave /
+#     set_property needs_save false [current_wave_config]
+#   } else {
+#      send_msg_id Add_Wave-1 WARNING "No top level signals found. Simulator will start without a wave window. If you want to open a wave window go to 'File->New Waveform Configuration' or type 'create_wave_config' in the TCL console."
+#   }
+# }
+# run 1000ns
+=== Input Manager Testbench ===
+Testing DAS and One-Shot behavior
+
+Test 1: Rotate CW One-Shot
+  PASS: Rotate CW Triggered on press
+  PASS: Rotate CW Pulse Ended after one cycle
+  PASS: Rotate CW did not re-trigger while holding
+
+Test 1b: Rotate CCW One-Shot
+  PASS: Rotate CCW Triggered on press
+  PASS: Rotate CCW Pulse Ended after one cycle
+  PASS: Rotate CCW did not re-trigger while holding
+
+Test 2: Drop One-Shot
+  PASS: Drop Triggered on press
+  PASS: Drop Pulse Ended
+
+Test 3: Hold One-Shot
+  PASS: Hold Triggered on press
+  PASS: Hold Pulse Ended after one cycle
+  PASS: Hold did not re-trigger while holding
+  PASS: Hold Triggered again after release
+
+Test 4: Left DAS (Delayed Auto Shift)
+  PASS: Left Initial Move on press
+  PASS: No trigger during DAS delay (15 frames)
+  PASS: Left DAS Auto-Repeat Triggered
+
+Test 5: Down Fast Repeat (Soft Drop)
+  PASS: Down Initial trigger
+  PASS: Down Fast Repeat working (every ~2 frames)
+
+=== Test Summary ===
+Passed: 17
+Failed: 0
+Simulation Finished
+$finish called at time : 975 ns : File "/home/alkhalmr/gtprj/ag-tetris/test/tb_input_manager.sv" Line 313
+INFO: [USF-XSim-96] XSim completed. Design snapshot 'tb_input_manager_behav' loaded.

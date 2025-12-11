@@ -1,0 +1,38 @@
+# run 1000ns
+=== PS2Receiver Testbench ===
+Testing low-level PS2 protocol reception
+
+Test 1: Single Scancode (A key - 0x1C)
+INFO: [USF-XSim-96] XSim completed. Design snapshot 'tb_PS2Receiver_behav' loaded.
+INFO: [USF-XSim-97] XSim simulation ran for 1000ns
+launch_simulation: Time (s): cpu = 00:00:11 ; elapsed = 00:00:09 . Memory (MB): peak = 8409.602 ; gain = 0.000 ; free physical = 1013572 ; free virtual = 1028803
+run all
+  PASS: Received scancode 0x1C
+
+Test 2: Multiple Scancodes
+  PASS: History buffer: prev=0x1C, curr=0x23
+  PASS: Received scancode 0x2B
+
+Test 3: Break Code (F0 1C - Release A)
+  PASS: Break code received (F0 1C)
+
+Test 4: Extended Key (E0 6B - Left Arrow)
+  PASS: Extended key received (E0 6B)
+
+Test 5: Extended Key Release (E0 F0 6B - Release Left Arrow)
+  PASS: Extended release received (E0 F0 6B)
+
+Test 6: Space Key (0x29 - Hard Drop)
+  PASS: Space key received (0x29)
+
+Test 7: Left Shift Key (0x12 - Hold)
+  PASS: Left Shift key received (0x12)
+
+Test 8: Up Arrow (E0 75 - Rotate)
+  PASS: Up Arrow received (E0 75)
+
+=== Test Summary ===
+Passed: 9
+Failed: 0
+Simulation Finished
+$finish called at time : 6874100 ns : File "/home/alkhalmr/gtprj/ag-tetris/test/tb_PS2Receiver.sv" Line 204

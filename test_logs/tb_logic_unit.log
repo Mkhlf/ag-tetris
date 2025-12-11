@@ -1,0 +1,11 @@
+--- Starting Logic Unit Tests ---
+Test 1: Check Valid
+PASS: Valid Position
+PASS: OOB Left
+PASS: Collision
+Test 2: Create Field
+PASS: Field Merge
+Test 3: Clean Field
+PASS: 1 Line Cleared
+PASS: Row Shifted
+$finish called at time : 295 ns : File "/home/alkhalmr/gtprj/ag-tetris/test/tb_logic_unit.sv" Line 165

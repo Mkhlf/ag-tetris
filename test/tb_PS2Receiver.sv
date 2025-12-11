@@ -1,5 +1,8 @@
 `timescale 1ns / 1ps
 
+/* tb_PS2Receiver
+ * Drives PS2Receiver with representative scan codes and checks decoded history.
+ */
 module tb_PS2Receiver;
 
     logic clk;
@@ -19,31 +22,26 @@ module tb_PS2Receiver;
 
     always #5 clk = ~clk;
 
-    // Task to send a PS/2 byte
     task send_ps2_byte(input [7:0] data);
         integer i;
         logic parity;
         begin
-            parity = ^data; // Odd parity
+            parity = ^data;
             
-            // Start bit
             kdata = 0;
             #20000 kclk = 0;
             #20000 kclk = 1;
             
-            // Data bits
             for (i = 0; i < 8; i = i + 1) begin
                 kdata = data[i];
                 #20000 kclk = 0;
                 #20000 kclk = 1;
             end
             
-            // Parity bit
             kdata = parity;
             #20000 kclk = 0;
             #20000 kclk = 1;
             
-            // Stop bit
             kdata = 1;
             #20000 kclk = 0;
             #20000 kclk = 1;
@@ -62,9 +60,6 @@ module tb_PS2Receiver;
         
         #100;
         
-        // ================================================================
-        // Test 1: Single Scancode
-        // ================================================================
         $display("Test 1: Single Scancode (A key - 0x1C)");
         send_ps2_byte(8'h1C);
         #1000;
@@ -76,9 +71,6 @@ module tb_PS2Receiver;
             fail_count++;
         end
         
-        // ================================================================
-        // Test 2: Multiple Scancodes (History Buffer)
-        // ================================================================
         $display("\nTest 2: Multiple Scancodes");
         send_ps2_byte(8'h23); // 'D' key
         #1000;
@@ -100,9 +92,6 @@ module tb_PS2Receiver;
             fail_count++;
         end
         
-        // ================================================================
-        // Test 3: Break Code (F0)
-        // ================================================================
         $display("\nTest 3: Break Code (F0 1C - Release A)");
         send_ps2_byte(8'hF0);
         #1000;
@@ -116,9 +105,6 @@ module tb_PS2Receiver;
             fail_count++;
         end
         
-        // ================================================================
-        // Test 4: Extended Key (E0 Prefix - Arrow Keys)
-        // ================================================================
         $display("\nTest 4: Extended Key (E0 6B - Left Arrow)");
         send_ps2_byte(8'hE0);
         #1000;
@@ -132,9 +118,6 @@ module tb_PS2Receiver;
             fail_count++;
         end
         
-        // ================================================================
-        // Test 5: Extended Key Release (E0 F0 XX)
-        // ================================================================
         $display("\nTest 5: Extended Key Release (E0 F0 6B - Release Left Arrow)");
         send_ps2_byte(8'hE0);
         #1000;
@@ -150,9 +133,6 @@ module tb_PS2Receiver;
             fail_count++;
         end
         
-        // ================================================================
-        // Test 6: Space Key (0x29 - Hard Drop)
-        // ================================================================
         $display("\nTest 6: Space Key (0x29 - Hard Drop)");
         send_ps2_byte(8'h29);
         #1000;
@@ -164,9 +144,6 @@ module tb_PS2Receiver;
             fail_count++;
         end
         
-        // ================================================================
-        // Test 7: Left Shift Key (0x12 - Hold)
-        // ================================================================
         $display("\nTest 7: Left Shift Key (0x12 - Hold)");
         send_ps2_byte(8'h12);
         #1000;
@@ -178,9 +155,6 @@ module tb_PS2Receiver;
             fail_count++;
         end
         
-        // ================================================================
-        // Test 8: Up Arrow (E0 75 - Rotate)
-        // ================================================================
         $display("\nTest 8: Up Arrow (E0 75 - Rotate)");
         send_ps2_byte(8'hE0);
         #1000;
@@ -194,9 +168,6 @@ module tb_PS2Receiver;
             fail_count++;
         end
         
-        // ================================================================
-        // Summary
-        // ================================================================
         $display("\n=== Test Summary ===");
         $display("Passed: %0d", pass_count);
         $display("Failed: %0d", fail_count);

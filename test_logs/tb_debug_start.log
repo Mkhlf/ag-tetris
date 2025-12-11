@@ -1,0 +1,60 @@
+# run 1000ns
+=== START DEBUG TRACE ===
+Includes HOLD feature debugging
+
+Reset Released at                45000
+Time:                56000 | State: GEN_WAIT | Current: EMPTY | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  x,   x) | Ghost Y:   x | Rotation: x
+Time:                66000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:                76000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:                86000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:                96000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               106000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               116000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               126000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               136000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               146000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               156000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               166000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               176000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               186000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               196000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               206000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               216000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               226000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               236000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+Time:               246000 | State: IDLE | Current: J | Next: O | Hold: EMPTY | HoldUsed: 0
+  Position: (  3,   0) | Ghost Y:  20 | Rotation: 0
+
+=== Testing HOLD ===
+Time:               266000 | State: GEN | Current: J | Hold: J | HoldUsed: 1
+Time:               276000 | State: GEN_WAIT | Current: J | Hold: J | HoldUsed: 1
+Time:               286000 | State: IDLE | Current: O | Hold: J | HoldUsed: 1
+Time:               296000 | State: IDLE | Current: O | Hold: J | HoldUsed: 1
+Time:               306000 | State: IDLE | Current: O | Hold: J | HoldUsed: 1
+Time:               316000 | State: IDLE | Current: O | Hold: J | HoldUsed: 1
+Time:               326000 | State: IDLE | Current: O | Hold: J | HoldUsed: 1
+Time:               336000 | State: IDLE | Current: O | Hold: J | HoldUsed: 1
+Time:               346000 | State: IDLE | Current: O | Hold: J | HoldUsed: 1
+Time:               356000 | State: IDLE | Current: O | Hold: J | HoldUsed: 1
+
+=== END DEBUG TRACE ===
+$finish called at time : 356 ns : File "/home/alkhalmr/gtprj/ag-tetris/test/tb_debug_start.sv" Line 128

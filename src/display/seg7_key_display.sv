@@ -1,18 +1,6 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// 7-Segment Display for Keyboard Input Visualization
-// Shows which Tetris control key is currently pressed:
-//   - "L" for Left Arrow
-//   - "r" for Right Arrow  
-//   - "d" for Down Arrow
-//   - "U" for Up Arrow (Rotate)
-//   - "H" for Hold (Left Shift)
-//   - "S" for Space (Hard Drop)
-//   - "----" when no key pressed
-//
-// Uses 4 digits to show key name and scan code
-//////////////////////////////////////////////////////////////////////////////////
-
+// seg7_key_display: multiplexed 7-segment driver that shows the active control
+// key (with priority) and its scan code across four digits.
 module seg7_key_display(
     input  logic        clk,           // System clock (100MHz)
     input  logic        rst,

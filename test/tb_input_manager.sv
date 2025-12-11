@@ -1,6 +1,9 @@
 `timescale 1ns / 1ps
-`include "../GLOBAL.sv"
+`include "GLOBAL.sv"
 
+/* tb_input_manager
+ * Verifies one-shot and DAS behavior for controller inputs.
+ */
 module tb_input_manager;
 
     logic clk;
@@ -32,7 +35,7 @@ module tb_input_manager;
         .cmd_hold(cmd_hold)
     );
 
-    always #5 clk = ~clk; // 100MHz
+    always #5 clk = ~clk;
 
     initial begin
         clk = 0; rst = 1; tick_game = 0;
@@ -44,9 +47,6 @@ module tb_input_manager;
         
         #20 rst = 0;
         
-        // ================================================================
-        // Test 1: Rotate CW One-Shot
-        // ================================================================
         $display("Test 1: Rotate CW One-Shot");
         @(negedge clk);  // Setup time before clock edge
         raw_rotate_cw = 1;
@@ -70,7 +70,6 @@ module tb_input_manager;
             fail_count++;
         end
         
-        // Hold for a while - should NOT re-trigger
         repeat(10) @(posedge clk);
         if (!cmd_rotate_cw) begin
             $display("  PASS: Rotate CW did not re-trigger while holding");
@@ -84,9 +83,6 @@ module tb_input_manager;
         raw_rotate_cw = 0;
         @(posedge clk);
         
-        // ================================================================
-        // Test 1b: Rotate CCW One-Shot
-        // ================================================================
         $display("\nTest 1b: Rotate CCW One-Shot");
         @(negedge clk);  // Setup time before clock edge
         raw_rotate_ccw = 1;
@@ -110,7 +106,6 @@ module tb_input_manager;
             fail_count++;
         end
         
-        // Hold for a while - should NOT re-trigger
         repeat(10) @(posedge clk);
         if (!cmd_rotate_ccw) begin
             $display("  PASS: Rotate CCW did not re-trigger while holding");
@@ -124,9 +119,6 @@ module tb_input_manager;
         raw_rotate_ccw = 0;
         @(posedge clk);
         
-        // ================================================================
-        // Test 2: Drop One-Shot
-        // ================================================================
         $display("\nTest 2: Drop One-Shot");
         @(negedge clk);  // Setup time before clock edge
         raw_drop = 1;
@@ -154,9 +146,6 @@ module tb_input_manager;
         raw_drop = 0;
         @(posedge clk);
         
-        // ================================================================
-        // Test 3: Hold One-Shot (NEW)
-        // ================================================================
         $display("\nTest 3: Hold One-Shot");
         @(negedge clk);  // Setup time before clock edge
         raw_hold = 1;
@@ -180,7 +169,6 @@ module tb_input_manager;
             fail_count++;
         end
         
-        // Hold should NOT re-trigger while key is held
         repeat(10) @(posedge clk);
         if (!cmd_hold) begin
             $display("  PASS: Hold did not re-trigger while holding");
@@ -194,7 +182,6 @@ module tb_input_manager;
         raw_hold = 0;
         @(posedge clk);
         
-        // Release and press again
         @(negedge clk);
         raw_hold = 1;
         @(posedge clk);
@@ -210,9 +197,6 @@ module tb_input_manager;
         raw_hold = 0;
         @(posedge clk);
         
-        // ================================================================
-        // Test 4: DAS (Left) - Classic Tetris Feel
-        // ================================================================
         $display("\nTest 4: Left DAS (Delayed Auto Shift)");
         @(negedge clk);  // Setup time
         raw_left = 1;
@@ -226,13 +210,11 @@ module tb_input_manager;
             fail_count++;
         end
         
-        // Wait for DAS Delay (16 frames at 60Hz)
         repeat(15) begin
             tick_game = 1; @(posedge clk); 
             tick_game = 0; @(posedge clk);
         end
         
-        // After 15 ticks, should NOT trigger yet
         #1;
         if (!cmd_left) begin
             $display("  PASS: No trigger during DAS delay (15 frames)");
@@ -242,17 +224,14 @@ module tb_input_manager;
             fail_count++;
         end
         
-        // 16th frame - starts counting repeat speed
         tick_game = 1; @(posedge clk); 
         tick_game = 0; @(posedge clk);
         
-        // Need 6 more ticks for DAS_SPEED (classic feel = 6 frames)
         repeat(5) begin
             tick_game = 1; @(posedge clk); 
             tick_game = 0; @(posedge clk);
         end
         
-        // Next tick should trigger auto-repeat
         tick_game = 1; 
         @(posedge clk); 
         @(negedge clk);
@@ -269,9 +248,6 @@ module tb_input_manager;
         raw_left = 0;
         @(posedge clk);
         
-        // ================================================================
-        // Test 5: Down Fast Repeat
-        // ================================================================
         $display("\nTest 5: Down Fast Repeat (Soft Drop)");
         @(negedge clk);  // Setup time
         raw_down = 1;
@@ -285,7 +261,6 @@ module tb_input_manager;
             fail_count++;
         end
         
-        // Down has fast repeat (every 2 frames)
         tick_game = 1; @(posedge clk); tick_game = 0; @(posedge clk);
         tick_game = 1; @(posedge clk); tick_game = 0; @(posedge clk);
         tick_game = 1; @(posedge clk); 
@@ -303,9 +278,6 @@ module tb_input_manager;
         raw_down = 0;
         @(posedge clk);
         
-        // ================================================================
-        // Summary
-        // ================================================================
         $display("\n=== Test Summary ===");
         $display("Passed: %0d", pass_count);
         $display("Failed: %0d", fail_count);

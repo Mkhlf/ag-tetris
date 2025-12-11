@@ -1,7 +1,6 @@
+// draw_string: renders a single ASCII character with an 8x8 bitmap font and
+// optional scaling; font covers A-Z, 0-9, space, hyphen, and colon.
 `include "../GLOBAL.sv"
-
-// Simple 8x8 bitmap font for ASCII characters
-// Only includes characters we need: A-Z, 0-9, -, space
 module draw_string (
     input  logic [10:0] curr_x,
     input  logic [9:0]  curr_y,
@@ -12,8 +11,6 @@ module draw_string (
     output logic        pixel_on
 );
 
-    // 8x8 font ROM - each character is 8 bytes (8 bits wide, 8 rows tall)
-    // Format: 8 rows of 8 bits each
     logic [63:0] font_data;
     
     always_comb begin
@@ -66,7 +63,6 @@ module draw_string (
         endcase
     end
     
-    // Character dimensions
     localparam CHAR_W = 8;
     localparam CHAR_H = 8;
     localparam CHAR_SPACING = 1;
@@ -77,7 +73,6 @@ module draw_string (
     assign rel_x = curr_x - pos_x;
     assign rel_y = curr_y - pos_y;
     
-    // Scale support
     logic [10:0] scaled_rel_x, scaled_rel_y;
     assign scaled_rel_x = rel_x / scale;
     assign scaled_rel_y = rel_y / scale;
@@ -89,14 +84,6 @@ module draw_string (
         pixel_on = 0;
         if (rel_x >= 0 && rel_x < (CHAR_W * scale) && 
             rel_y >= 0 && rel_y < (CHAR_H * scale)) begin
-            // Font data is stored row-major, MSB first
-            // Row pixel_y, bit (7 - pixel_x)
-            // FIX: Removed "7 - " to fix mirroring issue (if font is LSB first or user meant horizontal flip)
-            // Actually, standard font hex usually maps MSB to left. 
-            // If user says it's mirrored, it might be that "7 - pixel_x" was correct for MSB-left, 
-            // but the display scan is doing something else? 
-            // Or maybe the font data I have IS LSB-left?
-            // Let's try flipping it by using just `pixel_x`.
             if (font_data[63 - (pixel_y * 8 + pixel_x)]) begin
                 pixel_on = 1;
             end
@@ -105,7 +92,8 @@ module draw_string (
 
 endmodule
 
-// Helper module to draw a string of characters
+// draw_string_line: renders a short string (up to 16 chars) by tiling
+// draw_string instances with configurable scale and spacing.
 module draw_string_line (
     input  logic [10:0] curr_x,
     input  logic [9:0]  curr_y,

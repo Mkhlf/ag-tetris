@@ -1,6 +1,9 @@
 `timescale 1ns / 1ps
-`include "../GLOBAL.sv"
+`include "GLOBAL.sv"
 
+/* tb_generate_tetromino
+ * Sanity tests for 7-bag generation: valid indices and non-empty shapes.
+ */
 module tb_generate_tetromino;
 
     logic clk;
@@ -29,7 +32,7 @@ module tb_generate_tetromino;
         $display("=== Test 1: Initial Generation ===");
         enable = 1;
         @(posedge clk);
-        repeat(2) @(posedge clk); // Generation takes 1 cycle
+        repeat(2) @(posedge clk);
         @(posedge clk);
         
         if (t_curr_out.idx.data >= `TETROMINO_I_IDX && t_curr_out.idx.data <= `TETROMINO_Z_IDX)

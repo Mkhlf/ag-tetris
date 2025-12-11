@@ -1,0 +1,40 @@
+== ps2_keyboard Testbench ===
+Testing PS2 keyboard interface with key_event_valid pulse
+
+Test 1: Press 'A' (0x1C)
+INFO: [USF-XSim-96] XSim completed. Design snapshot 'tb_ps2_keyboard_behav' loaded.
+INFO: [USF-XSim-97] XSim simulation ran for 1000ns
+launch_simulation: Time (s): cpu = 00:00:16 ; elapsed = 00:00:10 . Memory (MB): peak = 8432.738 ; gain = 23.008 ; free physical = 1013537 ; free virtual = 1028780
+run all
+WARNING: Timeout waiting for key_event_valid
+  PASS: Key Press Detected (Code: 1c, State: Make)
+
+Test 2: Release 'A' (F0 1C)
+WARNING: Timeout waiting for key_event_valid
+  PASS: Key Release Detected (Code: 1c, State: Break)
+
+Test 3: Press Left Arrow (E0 6B)
+WARNING: Timeout waiting for key_event_valid
+  PASS: Extended Key Press (Left Arrow: 6b, Make)
+
+Test 4: Release Left Arrow (E0 F0 6B)
+WARNING: Timeout waiting for key_event_valid
+  PASS: Extended Key Release (Left Arrow: 6b, Break)
+
+Test 5: Press Left Shift (0x12) - Hold Key
+WARNING: Timeout waiting for key_event_valid
+  PASS: Left Shift Press (Code: 12, State: Make)
+
+Test 6: Press Space (0x29) - Hard Drop
+WARNING: Timeout waiting for key_event_valid
+  PASS: Space Press (Code: 29, State: Make)
+
+Test 7: Press Up Arrow (E0 75) - Rotate
+WARNING: Timeout waiting for key_event_valid
+  PASS: Up Arrow Press (Code: 75, State: Make)
+
+=== Test Summary ===
+Passed: 7
+Failed: 0
+Simulation Finished
+$finish called at time : 6605055 ns : File "/home/alkhalmr/gtprj/ag-tetris/test/tb_ps2_keyboard.sv" Line 199
