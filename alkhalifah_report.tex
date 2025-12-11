@@ -10,6 +10,8 @@
 \usepackage{tabularx}
 \usepackage{booktabs}
 \usepackage{svg}
+\usepackage{hyperref}
+\usepackage{url}
 
 \geometry{margin=1in}
 
@@ -180,15 +182,24 @@ end
 This logic ensures that as the beam scans across the screen, it "picks up" the color of the Tetris block at that location.
 
 \subsection{Clock Architecture}
-The system utilizes a complex clocking scheme to balance performance and protocol requirements. Five distinct clock domains are generated:
+
+The system utilizes a complex clocking scheme to balance performance and protocol
+requirements. Five distinct clock domains are generated:
+
 \begin{itemize}
-    \item \textbf{100 MHz}: Main system clock and 7-segment display driver.
-    \item \textbf{83.46 MHz}: Pixel clock for 1280x800 VGA timing.
-    \item \textbf{50 MHz}: PS/2 clock for reliable keyboard sampling (2x oversampling of max PS/2 frequency).
-    \item \textbf{25 MHz}: Game Logic clock. The FSM runs here to allow simple single-cycle logic without timing violations relative to the fast pixel clock.
-    \item \textbf{60 Hz}: Game Tick. Generated from the 25 MHz clock to drive gravity and animation updates.
+\item \textbf{100 MHz}: Main system clock and 7-segment display driver.
+
+\item \textbf{83.46 MHz}: Pixel clock for 1280x800 VGA timing. This frequency is derived from the VESA Display Monitor Timing Standard~\cite{vesa-dmt} which specifies 83.46 MHz as the required pixel clock for 1280$\times$800 @ 60Hz resolution.
+
+\item \textbf{50 MHz}: PS/2 clock for reliable keyboard sampling (2x oversampling of max PS/2 frequency). The PS/2 protocol typically operates at 10-16.7 kHz~\cite{ps2-protocol}, so 50 MHz provides sufficient oversampling margin for robust signal capture.
+
+\item \textbf{25 MHz}: Game Logic clock. The FSM runs at this lower frequency to allow simple single-cycle logic without timing violations relative to the fast pixel clock, while still being fast enough for responsive gameplay.
+
+\item \textbf{60 Hz}: Game Tick. Generated from the 25 MHz clock to drive gravity and animation updates, matching the display's refresh rate for smooth visual feedback.
 \end{itemize}
-Figure \ref{fig:clock_arch} shows the synthesized clock generation circuit and the CDC synchronizers used to safely transfer signals between domains.
+
+Figure \ref{fig:clock_arch} shows the synthesized clock generation circuit and the CDC synchronizers used
+to safely transfer signals between domains.
 
 \begin{figure}[H]
     \centering
@@ -442,10 +453,31 @@ On the physical FPGA board (Nexys A7), we verified:
     \item \textbf{Gameplay}: Full games were played through including line clears, reaching max level, game over, and reset functionality.
 \end{itemize}
 
+\section{References}
+
+\begin{enumerate}
+
+\item ``VESA Signal 1280 x 800 @ 60 Hz timing,'' tinyvga.com. [Online]. Available: \url{http://www.tinyvga.com/vga-timing/1280x800@60Hz}
+
+\item ``Super Rotation System,'' TetrisWiki. [Online]. Available: \url{https://tetris.wiki/Super_Rotation_System}
+
+\item ``Tetris Guideline,'' Hard Drop Tetris Wiki. [Online]. Available: \url{https://harddrop.com/wiki/Tetris_Guideline}
+
+\item ``Random Generator,'' TetrisWiki. [Online]. Available: \url{https://tetris.wiki/Random_Generator}
+
+\end{enumerate}
 
 \section{Reflection}
-\textit{(To be filled by student)}
-I enjoyed working on the video timing generation as it provided a concrete understanding of how digital signals translate to visual information. One challenge was handling the clock domain crossing between the slow game logic (60Hz tick) and the fast pixel clock, which resulted in some initial visual glitches that were solved by synchronizing state updates to VSync. In the future, I would improve the project by adding audio output and more advanced scoring animations.
+
+This project provided invaluable hands-on experience in designing hardware systems from first principles to meet complex application requirements. The most significant technical skill gained was learning to architect hardware pipelines and finite state machines that operate across multiple clock domains, a challenge rarely encountered in pure software development but fundamental to digital design.
+
+The video timing generation was particularly rewarding, as it offered concrete insight into how digital signals translate directly to visual information on a display. Implementing the 4-stage rendering pipeline and ensuring pixel-perfect synchronization with the VGA protocol deepened my understanding of hardware parallelism and real-time constraints.
+
+Beyond clock domain crossing, the project presented substantial challenges in implementing smooth, responsive controls and the complex Super Rotation System with wall kicks and T-spin detection. Achieving fluid input handling required careful design of the Delayed Auto Shift (DAS) mechanism with dedicated hardware counters, while the SRS rotation system demanded implementing lookup tables and collision checking logic that could execute within tight timing constraints. Balancing game logic complexity with the need for deterministic, cycle-accurate behavior across multiple concurrent processes proved to be one of the most demanding aspects of the design.
+
+If I were to approach this project again, I would invest more time upfront in formal verification of the FSM state transitions and create more comprehensive waveform-based testbenches for the rendering pipeline. While simulation testing caught most bugs, some visual artifacts only appeared during hardware deployment---earlier detection through more rigorous simulation could have saved debugging time on the physical FPGA.
+
+Future enhancements to this implementation could include audio output using PWM for sound effects and background music, animated score displays with particle effects during line clears, and support for two-player competitive modes. Additionally, implementing variable DAS settings and customizable key mappings would improve the user experience for players with different skill levels and preferences.
 
 \newpage
 \appendix
