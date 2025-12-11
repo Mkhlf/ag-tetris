@@ -64,6 +64,21 @@
 \newpage
 
 \section{Introduction}
+
+\subsection{What is Tetris?}
+Tetris is a tile-matching puzzle game originally designed by Alexey Pajitnov in 1985. The player manipulates falling geometric shapes called \textit{tetrominoes}---each composed of four square blocks---rotating and positioning them to complete horizontal lines on a 10$\times$20 grid. Completed lines are cleared, and the game ends when pieces stack to the top of the playfield.
+
+\subsection{Why Implement Tetris on an FPGA?}
+Implementing Tetris on an FPGA presents unique challenges that make it an ideal educational project for digital design:
+\begin{itemize}
+    \item \textbf{Real-Time Constraints}: The game requires generating VGA video signals at precise timing intervals (83.46 MHz pixel clock) while simultaneously processing user input and updating game state.
+    \item \textbf{Parallel Processing}: Unlike software implementations that execute sequentially, hardware must handle input sampling, game logic, and pixel rendering concurrently across different clock domains.
+    \item \textbf{State Machine Complexity}: The game logic involves a multi-state FSM handling piece spawning, movement, rotation with wall kicks, line clearing, and scoring.
+    \item \textbf{Protocol Implementation}: Direct interfacing with VGA displays and PS/2 keyboards requires understanding and implementing timing-critical communication protocols.
+    \item \textbf{Advanced Game Mechanics}: Modern Tetris features like the Super Rotation System (SRS) with wall kicks, Delayed Auto Shift (DAS) for smooth movement, ghost piece projection, and the 7-bag randomizer all require dedicated hardware logic.
+\end{itemize}
+
+\subsection{Project Overview}
 The objective of this class project was to implement a fully functional Tetris game on an FPGA verification board. The project utilizes SystemVerilog to describe the hardware logic required for generating VGA video signals, processing user input via a PS/2 keyboard, and maintaining the complex game state.
 
 The system is designed to interface with standard peripherals: a VGA monitor for display and a keyboard for control. The implementation demonstrates key digital design concepts such as finite state machines (FSMs), clock domain crossing (CDC), protocol handling (PS/2), video timing generation, and pipelined rendering.
@@ -78,7 +93,10 @@ The video signal consists of three color channels (Red, Green, Blue) and two syn
     \item \textbf{Vertical Sync (VS)}: Signals the end of a frame and controls the vertical retrace.
 \end{enumerate}
 
-To achieve the target resolution of $1280 \times 800$ (scaled to simpler timings) or standard $640 \times 480$, our system operates with a pixel clock of approximately 83.46 MHz.
+To achieve the target resolution of $1280 \times 800$ at 60Hz, our system operates with a pixel clock of approximately 83.46 MHz~[1]. The visible pixels are output only during the \textit{active area}, with blanking intervals for sync pulses and porch regions.
+
+In traditional CRT displays, a single cathode ray was deflected across the screen to produce individual lit points on the phosphor, scanning from top-left across to complete the first row, followed by starting from the left again to produce the second row, and so on. Since it takes time for the beam to move from right to left (horizontal retrace) and from bottom to top (vertical retrace), there are extra cycles where no visible pixels are produced---these are the blanking intervals.
+
 
 \subsection{Circuit Implementation}
 We implemented the timing logic in the \texttt{vga\_out} module. Two counters, \texttt{hcount} and \texttt{vcount}, track the scanning beam's position.
@@ -136,7 +154,7 @@ The system serves as a complex hierarchy of SystemVerilog modules. Below is a de
 \midrule
 \texttt{game\_top} & The top-level wrapper. It generates all system clocks (using MMCM or dividers), handles the global reset, and instantiates the IO drivers (VGA, PS/2). \\[0.5em]
 
-\texttt{vga\_out} & The video timing levelgenerator. It produces the \texttt{hsync}, \texttt{vsync}, and \texttt{active\_area} signals required for the $1280 \times 800$ display standard. \\[0.5em]
+\texttt{vga\_out} & The video timing generator. It produces the \texttt{hsync}, \texttt{vsync}, and \texttt{active\_area} signals required for the $1280 \times 800$ display standard. \\[0.5em]
 
 \texttt{game\_control} & The core logic hub. It contains the main FSM that governs game flow (spawning, gravity, line clearing) and maintains the board state array. \\[0.5em]
 
@@ -380,7 +398,7 @@ Table \ref{tab:tb_summary} lists the key testbenches and their verification targ
     \hline
     \textbf{Testbench} & \textbf{Module Under Test} & \textbf{Result} \\ \hline
     \texttt{tb\_game\_control} & Core FSM (IDLE, MOVE, CLEAN) & 9/9 PASS \\ \hline
-    \texttt{tb\_input\_manager} & DAS, One-Shot logic & 17/17 PASS \\ \hline
+    \texttt{tb\_input\_manager} & DAS, one-shot logic & 17/17 PASS \\ \hline
     \texttt{tb\_rotate\_tetromino} & CW/CCW rotation matrix & 4/4 PASS \\ \hline
     \texttt{tb\_hold\_feature} & Hold swap, lockout & 9/9 PASS \\ \hline
     \texttt{tb\_generate\_tetromino} & 7-Bag randomizer & 13/13 PASS \\ \hline
@@ -390,8 +408,18 @@ Table \ref{tab:tb_summary} lists the key testbenches and their verification targ
     \label{tab:tb_summary}
 \end{table}
 
-\subsection{Input Manager Test (\texttt{tb\_input\_manager})}
-This testbench verifies \textbf{DAS} (Delayed Auto Shift) and \textbf{One-Shot} behavior. The log confirms that the rotation commands only fire once per key press, and the DAS repeat only triggers after a delay.
+\subsection{Game Control Simulation (\texttt{tb\_game\_control})}
+The core FSM was verified by simulating key game scenarios: piece spawning, movement, rotation, hold functionality, and game over detection. Figure~\ref{fig:sim_waveform} shows a representative simulation waveform from Vivado XSim.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{simulation_waveform.png}
+    \caption{Simulation waveform from \texttt{tb\_game\_control} showing FSM state transitions, piece position updates, and control signals.}
+    \label{fig:sim_waveform}
+\end{figure}
+
+\subsection{Input Manager Test (\texttt{tb_input_manager})}
+This testbench verifies \textbf{DAS} (Delayed Auto Shift) and \textbf{one-shot} behavior. The log confirms that the rotation commands only fire once per key press, and the DAS repeat only triggers after a delay.
 
 \begin{verbatim}
 Test 1: Rotate CW One-Shot
