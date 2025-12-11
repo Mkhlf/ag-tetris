@@ -100,6 +100,23 @@ This document catalogues all available figures for the FPGA Tetris project repor
 
 ---
 
+### Category 3b: Game Logic - Drop/Rotate
+
+| Figure ID | Source | Status | Contents |
+|-----------|--------|--------|----------|
+| **GAME-2** | `Schematic/game_inst/drop_rot.png` | ✅ Used in Report | Drop and rotation logic schematic |
+
+**What GAME-2 Contains:**
+- Dropping logic (gravity, hard drop)
+- Rotation logic connections
+- Piece manipulation signals
+
+**Use in Report:** Section 4.5.6 - Ghost Piece (linked to drop/rotate discussion)
+
+**Suggested Caption:** *"Figure X: Logic for piece manipulation showing drop and rotate control signals."*
+
+---
+
 ### Category 4: Input Manager Module
 
 | Figure ID | Source | Status | Contents |
@@ -130,34 +147,29 @@ This document catalogues all available figures for the FPGA Tetris project repor
 
 ---
 
-### Category 6: Custom Diagrams (Claude-Generated)
+### Category 5b: Top-Level - Input Merging
 
 | Figure ID | Source | Status | Contents |
 |-----------|--------|--------|----------|
-| **DIAG-1** | tetris_architecture.svg | ✅ Complete | System block diagram |
-| **DIAG-2** | vga_timing_diagram.svg | ✅ Complete | VGA timing waveforms |
-| **DIAG-3** | game_fsm_diagram.svg | ✅ Complete | Game control FSM states |
+| **TOP-2** | `Schematic/game_top_pics/input_mergingORs.png` | ✅ Used in Report | Input merging OR gates |
 
-**What DIAG-1 Contains (Architecture):**
-- All major modules in hierarchical layout
-- Input Layer: PS2Receiver, ps2_keyboard, debouncer_btn, input_manager
-- Game Logic Layer: game_control with submodules
-- Display Layer: vga_out, draw_tetris, block_sprite, seg7_key_display
-- Clock domains color-coded (83.46MHz, 50MHz, 25MHz)
-- CDC crossing points highlighted
-- Data bus widths annotated
-- Design statistics (1098 cells, 41 I/O, 2203 nets)
+**What TOP-2 Contains:**
+- OR gates combining keyboard and on-board button inputs
+- Signal routing to input_manager
 
-**What DIAG-2 Contains (VGA Timing):**
-- Horizontal timing waveform (hsync, active area)
-- Vertical timing waveform (vsync, active area)
-- All timing parameters labeled:
-  - H: 1280 visible, 72 front porch, 128 sync, 328 back porch
-  - V: 800 visible, 3 front porch, 6 sync, 14 back porch
-- Pixel clock calculation (83.46 MHz)
-- Refresh rate derivation (~56.1 Hz)
+**Use in Report:** Section 4.4 - Input Processing (`fig:input_merge`)
 
-**What DIAG-3 Contains (FSM):**
+**Suggested Caption:** *"Figure X: Input merging logic showing OR gates combining keyboard and physical button inputs before the input manager."*
+
+---
+
+### Category 6: User-Generated Diagrams
+
+| Figure ID | Source | Status | Contents |
+|-----------|--------|--------|----------|
+| **DIAG-1** | `fsm_diagram.png` | ✅ Used in Report | Game control FSM states (user-created) |
+
+**What DIAG-1 Contains (FSM):**
 - All 11+ states with transitions:
   - GEN → IDLE → MOVE_LEFT/RIGHT/ROTATE/DOWN/HARD_DROP/HOLD
   - CLEAN → DROP_LOCKOUT → GEN
@@ -165,7 +177,7 @@ This document catalogues all available figures for the FPGA Tetris project repor
 - Transition conditions labeled
 - State types color-coded
 
-**Use in Report:** These supplement/replace hard-to-read Vivado schematics
+**Use in Report:** Section 4.5.5 - Finite State Machine
 
 ---
 
@@ -175,8 +187,7 @@ This document catalogues all available figures for the FPGA Tetris project repor
 
 | Order | Figure | Purpose |
 |-------|--------|---------|
-| 1 | **DIAG-2** (VGA Timing Diagram) | Explain VGA protocol timing |
-| 2 | **VGA-1** (vga_out schematic) | Show actual implementation |
+| 1 | **VGA-1** (vga_out schematic) | Show actual implementation |
 
 **Narrative Flow:**
 1. Introduce VGA protocol with timing diagram
@@ -189,12 +200,12 @@ This document catalogues all available figures for the FPGA Tetris project repor
 
 | Order | Figure | Purpose |
 |-------|--------|---------|
-| 1 | **DIAG-1** (Architecture) | System overview |
-| 2 | **DIAG-3** (FSM Diagram) | Game logic states |
-| 3 | **GAME-1** (game_control overview) | Actual implementation (with caveat about complexity) |
-| 4 | **DRAW-1** (Region Detection) | Screen rendering approach |
-| 5 | **DRAW-2** (Sprite Output) | Pixel generation pipeline |
-| 6 | **INPUT-1** (Input Manager) | DAS implementation |
+| 1 | **DIAG-1** (FSM Diagram) | Game logic states |
+| 2 | **GAME-2** (Drop/Rotate) | Piece manipulation logic |
+| 3 | **DRAW-1** (Region Detection) | Screen rendering approach |
+| 4 | **DRAW-2** (Sprite Output) | Pixel generation pipeline |
+| 5 | **INPUT-1** (Input Manager) | DAS implementation |
+| 6 | **TOP-2** (Input Merging) | Optional: keyboard+button OR gates |
 
 **Narrative Flow:**
 1. Present high-level architecture
@@ -239,20 +250,46 @@ This document catalogues all available figures for the FPGA Tetris project repor
 
 ---
 
+## Report Figure Usage Status
+
+| Figure ID | File Path | Used in Report? | Location |
+|-----------|-----------|-----------------|----------|
+| VGA-1 | `Schematic/VGA_inst_pics/full_vga.png` | ✅ Yes | §2 VGA, `fig:vga_sch` |
+| DRAW-1 | `Schematic/draw_inst_pics/region_detectoin.png` | ✅ Yes | §4.5 Display, `fig:draw_pipeline` |
+| DRAW-2 | `Schematic/draw_inst_pics/sprit_output.png` | ✅ Yes | §4.5 Display, `fig:draw_pipeline` |
+| GAME-1 | `Schematic/game_inst/highlevel.png` | ❌ No | Too crowded |
+| GAME-2 | `Schematic/game_inst/drop_rot.png` | ✅ Yes | §4.5.6 Ghost, `fig:drop_rot` |
+| INPUT-1a | `Schematic/input_mgr_pics/left0.png` | ✅ Yes | §4.4 Input, `fig:input_das` |
+| INPUT-1b | `Schematic/input_mgr_pics/right0.png` | ✅ Yes | §4.4 Input, `fig:input_das` |
+| TOP-1a | `Schematic/game_top_pics/clk_section.png` | ✅ Yes | §4.3 Clock, `fig:clock_arch` |
+| TOP-1b | `Schematic/game_top_pics/cdc_section.png` | ✅ Yes | §4.3 Clock, `fig:clock_arch` |
+| TOP-2 | `Schematic/game_top_pics/input_mergingORs.png` | ✅ Yes | §4.4 Input, `fig:input_merge` |
+| DIAG-1 | `fsm_diagram.png` | ✅ Yes | §4.5.5 FSM, `fig:fsm` |
+
+---
+
 ## Quick Reference: Figure Filenames
 
 ```
-Vivado Exports:
-├── vga_out.pdf          → VGA-1
-├── draw_tetris.pdf      → DRAW-1, DRAW-2
-├── game_control.pdf     → GAME-1
-├── input_manager.pdf    → INPUT-1
-└── game_top.pdf         → TOP-1 (not used)
+Schematic Images (Vivado):
+├── VGA_inst_pics/
+│   └── full_vga.png             → VGA-1 ✅
+├── draw_inst_pics/
+│   ├── region_detectoin.png     → DRAW-1 ✅
+│   └── sprit_output.png         → DRAW-2 ✅
+├── game_inst/
+│   ├── highlevel.png            → GAME-1 (not used)
+│   └── drop_rot.png             → GAME-2 ✅
+├── game_top_pics/
+│   ├── clk_section.png          → TOP-1a ✅
+│   ├── cdc_section.png          → TOP-1b ✅
+│   └── input_mergingORs.png     → TOP-2 ✅
+└── input_mgr_pics/
+    ├── left0.png                → INPUT-1a ✅
+    └── right0.png               → INPUT-1b ✅
 
-Custom Diagrams:
-├── tetris_architecture.svg    → DIAG-1
-├── vga_timing_diagram.svg     → DIAG-2
-└── game_fsm_diagram.svg       → DIAG-3
+User-Created Diagrams:
+└── fsm_diagram.png              → DIAG-1 ✅
 ```
 
 ---
@@ -289,10 +326,10 @@ responsive controls with configurable repeat timing.
 
 ## Total Figure Count
 
-| Type | Count | Status |
-|------|-------|--------|
-| Vivado Schematics | 4-5 | Partial coverage |
-| Custom Diagrams | 3 | Complete |
-| **Total Available** | **7-8** | Sufficient for report |
+| Type | Count | Used in Report |
+|------|-------|----------------|
+| Vivado Schematics | 10 | 9 of 10 |
+| User-Created Diagrams | 1 | 1 of 1 |
+| **Total** | **11** | **10 used** |
 
-This should provide adequate visual support for all marked sections of the report.
+Only `Schematic/game_inst/highlevel.png` (GAME-1) is not used due to visual complexity.

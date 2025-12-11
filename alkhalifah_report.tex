@@ -144,7 +144,9 @@ The system serves as a complex hierarchy of SystemVerilog modules. Below is a de
 
 \texttt{check\_valid} & A combinational logic block that checks if a proposed piece position collides with walls or existing blocks. \\[0.5em]
 
-\texttt{ghost\_calc} & A helper module that calculates the "shadow" position of the piece by projecting it downwards until a collision occurs. \\
+\texttt{ghost\_calc} & A helper module that calculates the "shadow" position of the piece by projecting it downwards until a collision occurs. \\[0.5em]
+
+\texttt{GLOBAL.sv} & A shared header file containing game-wide constants (grid dimensions, timing parameters, tetromino definitions) used by all modules to ensure consistency. \\
 \bottomrule
 \end{tabularx}
 
@@ -206,7 +208,16 @@ Figure \ref{fig:clock_arch} shows the synthesized clock generation circuit and t
 \end{figure}
 
 \subsection{Input Processing}
-The input system ensures that player controls are fluid. As shown in Figure \ref{fig:input_das}, the implementation relies on dedicated counters for the "Delayed Auto Shift" (DAS) mechanism.
+The system supports two input methods: a PS/2 keyboard and on-board pushbuttons. As shown in Figure \ref{fig:input_merge}, OR gates combine these sources before passing them to the input manager. This allows seamless switching between input methods without software configuration.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{Schematic/game_top_pics/input_mergingORs.png}
+    \caption{Input merging logic showing OR gates combining keyboard and physical button inputs.}
+    \label{fig:input_merge}
+\end{figure}
+
+The input manager then ensures that player controls are fluid. As shown in Figure \ref{fig:input_das}, the implementation relies on dedicated counters for the \"Delayed Auto Shift\" (DAS) mechanism.
 The counters (`timer\_left` and `timer\_right` visible in the schematic) increment whilst a key is held. Once they cross a threshold (DAS\_DELAY), the system generates rapid movement pulses. This hardware-based timing ensures that the repeat rate is independent of the frame rate or game logic load.
 
 \begin{figure}[H]
@@ -432,14 +443,6 @@ On the physical FPGA board (Nexys A7), we verified:
 \end{itemize}
 
 
-\section{Code Quality}
-The code employs robust design patterns:
-\begin{itemize}
-    \item \textbf{Parameters}: All constants (screen size, sync pulses) are defined as \texttt{localparam} or in \texttt{GLOBAL.sv}.
-    \item \textbf{Separation of Logic and Display}: The game logic updates the state array, while the display logic purely reads it. This prevents "tearing" and logic bugs.
-    \item \textbf{Naming Conventions}: Signals are clearly named (\texttt{t\_next}, \texttt{s1\_curr\_x} for Stage 1 pipeline).
-\end{itemize}
-
 \section{Reflection}
 \textit{(To be filled by student)}
 I enjoyed working on the video timing generation as it provided a concrete understanding of how digital signals translate to visual information. One challenge was handling the clock domain crossing between the slow game logic (60Hz tick) and the fast pixel clock, which resulted in some initial visual glitches that were solved by synchronizing state updates to VSync. In the future, I would improve the project by adding audio output and more advanced scoring animations.
@@ -447,21 +450,109 @@ I enjoyed working on the video timing generation as it provided a concrete under
 \newpage
 \appendix
 \section{Appendix: Verilog Code}
+This appendix contains the complete SystemVerilog source code for the AG Tetris project. Each file is prefaced with a brief description of its purpose.
 
-\subsection{Top Level}
+% ==================== TOP LEVEL ====================
+\subsection{Top Level Module}
+
+\subsubsection*{game\_top.sv}
+\textit{The main system integration module. It generates all required clock domains (83.46 MHz pixel, 50 MHz PS/2, 25 MHz game), instantiates all subsystems (VGA, input, game logic), and handles clock domain crossing between them.}
 \lstinputlisting[language=Verilog]{game_top.sv}
 
+% ==================== GLOBAL DEFINITIONS ====================
+\subsection{Global Definitions}
+
+\subsubsection*{GLOBAL.sv}
+\textit{Shared header file containing game-wide constants such as grid dimensions (10$\times$20), tetromino type definitions, color indices, timing parameters, and custom data types used across all modules.}
+\lstinputlisting[language=Verilog]{src/GLOBAL.sv}
+
+% ==================== DISPLAY MODULES ====================
 \subsection{Display Modules}
+
+\subsubsection*{vga\_out.sv}
+\textit{VGA timing generator. Produces horizontal/vertical sync pulses and active area signals for 1280$\times$800 resolution at 60 Hz. Outputs the current pixel coordinates (\texttt{curr\_x}, \texttt{curr\_y}) for the rendering pipeline.}
 \lstinputlisting[language=Verilog]{src/display/vga_out.sv}
+
+\subsubsection*{draw\_tetris.sv}
+\textit{Main rendering engine. Implements a 4-stage pipeline to determine the color of each pixel by checking if it falls within the game grid, next piece preview, hold area, score display, or UI borders.}
 \lstinputlisting[language=Verilog]{src/display/draw_tetris.sv}
 
-\subsection{Logic Modules}
+\subsubsection*{block\_sprite.sv}
+\textit{Sprite ROM for tetromino blocks. Stores a 16$\times$16 grayscale texture that is tinted with per-piece colors during rendering to give blocks a beveled 3D appearance.}
+\lstinputlisting[language=Verilog]{src/display/block_sprite.sv}
+
+\subsubsection*{draw\_number.sv}
+\textit{Numeric digit renderer. Draws score and level numbers on screen by mapping digit values to a font ROM and outputting pixel data.}
+\lstinputlisting[language=Verilog]{src/display/draw_number.sv}
+
+\subsubsection*{draw\_string.sv}
+\textit{Text string renderer. Draws static text labels ("SCORE", "LEVEL", "NEXT", "HOLD") on the game UI using a character ROM.}
+\lstinputlisting[language=Verilog]{src/display/draw_string.sv}
+
+\subsubsection*{seg7\_key\_display.sv}
+\textit{7-segment display driver. Shows debug information (current key code, game state) on the FPGA board's 8-digit 7-segment display using time-multiplexed digit scanning.}
+\lstinputlisting[language=Verilog]{src/display/seg7_key_display.sv}
+
+% ==================== LOGIC MODULES ====================
+\subsection{Game Logic Modules}
+
+\subsubsection*{game\_control.sv}
+\textit{Central game state machine. Implements the main FSM with 15 states governing piece spawning, movement, rotation (with SRS wall kicks), gravity, line clearing, hold functionality, and game over detection.}
 \lstinputlisting[language=Verilog]{src/logic/game_control.sv}
+
+\subsubsection*{generate\_tetromino.sv}
+\textit{7-Bag randomizer. Generates tetromino pieces using the standard 7-bag algorithm, ensuring all 7 piece types appear exactly once before repeating.}
+\lstinputlisting[language=Verilog]{src/logic/generate_tetromino.sv}
+
+\subsubsection*{check\_valid.sv}
+\textit{Collision detection. Checks if a proposed piece position is valid by testing for collisions with the field boundaries and locked blocks.}
 \lstinputlisting[language=Verilog]{src/logic/check_valid.sv}
+
+\subsubsection*{clean\_field.sv}
+\textit{Line clearing logic. Detects complete rows, removes them, shifts all rows above downward, and returns the count of lines cleared for scoring.}
 \lstinputlisting[language=Verilog]{src/logic/clean_field.sv}
 
-\subsection{Input Modules}
+\subsubsection*{create\_field.sv}
+\textit{Field manipulation helper. Merges the current falling piece into the game field array when it locks in place.}
+\lstinputlisting[language=Verilog]{src/logic/create_field.sv}
+
+\subsubsection*{rotate\_tetromino.sv}
+\textit{Rotation with wall kicks. Implements the Super Rotation System (SRS) by attempting standard rotation first, then trying up to 4 alternative kick offsets if collision occurs.}
+\lstinputlisting[language=Verilog]{src/logic/rotate_tertomino.sv}
+
+\subsubsection*{rotate\_clockwise.sv}
+\textit{Basic rotation matrix. Performs a simple 90-degree clockwise rotation of a 4$\times$4 tetromino shape matrix.}
+\lstinputlisting[language=Verilog]{src/logic/rotate_clockwise.sv}
+
+\subsubsection*{ghost\_calc.sv}
+\textit{Ghost piece calculator. Projects the current piece downward to find where it would land, enabling the semi-transparent "ghost" preview.}
+\lstinputlisting[language=Verilog]{src/logic/ghost_calc.sv}
+
+\subsubsection*{spin\_detector.sv}
+\textit{T-Spin detection. Checks the 3-corner rule after T-piece rotations to determine if a T-Spin occurred for bonus scoring.}
+\lstinputlisting[language=Verilog]{src/logic/spin_detector.sv}
+
+\subsubsection*{bin\_to\_bcd.sv}
+\textit{Binary to BCD converter. Converts binary score values to Binary-Coded Decimal for display on the 7-segment display.}
+\lstinputlisting[language=Verilog]{src/logic/bin_to_bcd.sv}
+
+% ==================== INPUT MODULES ====================
+\subsection{Input Processing Modules}
+
+\subsubsection*{ps2\_keyboard.sv}
+\textit{PS/2 keyboard decoder. Processes raw scan codes from PS2Receiver, handles make/break prefixes (0xF0) and extended codes (0xE0), and outputs key events.}
 \lstinputlisting[language=Verilog]{src/input/ps2_keyboard.sv}
+
+\subsubsection*{PS2Receiver.sv}
+\textit{Low-level PS/2 protocol handler. Samples the PS/2 clock and data lines to deserialize 11-bit frames (start, 8 data, parity, stop) into raw scan codes.}
+\lstinputlisting[language=Verilog]{src/input/PS2Receiver.sv}
+
+\subsubsection*{input\_manager.sv}
+\textit{Input processing with DAS. Implements Delayed Auto Shift for smooth left/right movement and one-shot behavior for rotation, drop, and hold commands.}
 \lstinputlisting[language=Verilog]{src/input/input_manager.sv}
+
+\subsubsection*{debouncer.sv}
+\textit{Button debouncer. Removes mechanical bounce from physical push-button inputs using a shift register and stability counter.}
+\lstinputlisting[language=Verilog]{src/input/debouncer.sv}
 
 \end{document}
