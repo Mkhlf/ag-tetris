@@ -7,6 +7,9 @@
 \usepackage{float}
 \usepackage{caption}
 \usepackage{subcaption}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{svg}
 
 \geometry{margin=1in}
 
@@ -37,8 +40,18 @@
 \lstset{style=mystyle}
 
 \title{CS256 Class Project Report: FPGA Tetris}
-\author{Student Name \\ Student ID}
+
+\author{
+    Mohammad Alkhalifah \\
+    \texttt{mohammad.alkhalifah@kaust.edu.sa}
+    \and
+    Mustafa Albahrani\thanks{Contributed to the project implementation; however, this report is an individual submission by Mohammad Alkhalifah} \\
+    \texttt{mustafa.albahrani@kaust.edu.sa}
+}
+
 \date{\today}
+
+
 
 \begin{document}
 
@@ -113,22 +126,34 @@ As visualized in Figure \ref{fig:vga_sch}, the synthesized schematic confirms th
 \section{Module Architecture}
 The system serves as a complex hierarchy of SystemVerilog modules. Below is a definition of the key components and their roles in the design:
 
-\begin{description}
-    \item[\texttt{game\_top}] The top-level wrapper. It generates all system clocks (using MMCM or dividers), handles the global reset, and instantiates the IO drivers (VGA, PS/2).
-    \item[\texttt{vga\_out}] The video timing generator. It produces the `hsync`, `vsync`, and `active\_area` signals required for the $1280 \times 800$ display standard.
-    \item[\texttt{game\_control}] The core logic hub. It contains the main FSM that governs game flow (spawning, gravity, line clearing) and maintains the board state array.
-    \item[\texttt{draw\_tetris}] The rendering engine. It takes the game state and current pixel coordinate to output an RGB color, using a multi-stage pipeline.
-    \item[\texttt{input\_manager}] The input processor. It implements Delayed Auto Shift (DAS) to make controls feel responsive, converting raw key presses into game commands.
-    \item[\texttt{check\_valid}] A combinational logic block that checks if a proposed piece position collides with walls or existing blocks.
-    \item[\texttt{ghost\_calc}] A helper module that calculates the "shadow" position of the piece by projecting it downwards until a collision occurs.
-\end{description}
+\vspace{0.3cm}
+\noindent
+\begin{tabularx}{\textwidth}{@{} l X @{}}
+\toprule
+\textbf{Module} & \textbf{Description} \\
+\midrule
+\texttt{game\_top} & The top-level wrapper. It generates all system clocks (using MMCM or dividers), handles the global reset, and instantiates the IO drivers (VGA, PS/2). \\[0.5em]
+
+\texttt{vga\_out} & The video timing levelgenerator. It produces the \texttt{hsync}, \texttt{vsync}, and \texttt{active\_area} signals required for the $1280 \times 800$ display standard. \\[0.5em]
+
+\texttt{game\_control} & The core logic hub. It contains the main FSM that governs game flow (spawning, gravity, line clearing) and maintains the board state array. \\[0.5em]
+
+\texttt{draw\_tetris} & The rendering engine. It takes the game state and current pixel coordinate to output an RGB color, leveraging sprites and using a multi-stage pipeline. \\[0.5em]
+
+\texttt{input\_manager} & The input processor. It implements Delayed Auto Shift (DAS) to make controls feel responsive, converting raw key presses into game commands. \\[0.5em]
+
+\texttt{check\_valid} & A combinational logic block that checks if a proposed piece position collides with walls or existing blocks. \\[0.5em]
+
+\texttt{ghost\_calc} & A helper module that calculates the "shadow" position of the piece by projecting it downwards until a collision occurs. \\
+\bottomrule
+\end{tabularx}
 
 \section{Design Description and Drawing Logic}
 
 \subsection{Drawing Strategy: Pipelined Renderer}
 Drawing Objects on the screen is performed by the \texttt{draw\_tetris} module. Unlike software rendering which clears a buffer and redraws, hardware rendering must decide the color of \textit{the specific pixel being clocked out right now}.
 
-To handle the complex decision making within a single pixel clock cycle (<12ns), the design uses a pipelined approach shown in Figure \ref{fig:draw_pipeline}.
+To handle the complex decision making within a single pixel clock cycle ($<$12ns), the design uses a pipelined approach shown in Figure \ref{fig:draw_pipeline}.
 
 \begin{enumerate}
     \item \textbf{Stage 1: Region Detection (Fig \ref{fig:draw_pipeline}a).} Logic comparators classify the current \texttt{curr\_x/y} pixel into regions: Board, Next Piece, Score, or Border. This reduces the problem space for the next stages.
@@ -182,7 +207,7 @@ Figure \ref{fig:clock_arch} shows the synthesized clock generation circuit and t
 
 \subsection{Input Processing}
 The input system ensures that player controls are fluid. As shown in Figure \ref{fig:input_das}, the implementation relies on dedicated counters for the "Delayed Auto Shift" (DAS) mechanism.
-The counters (`timer_left` and `timer_right` visible in the schematic) increment whilst a key is held. Once they cross a threshold (DAS\_DELAY), the system generates rapid movement pulses. This hardware-based timing ensures that the repeat rate is independent of the frame rate or game logic load.
+The counters (`timer\_left` and `timer\_right` visible in the schematic) increment whilst a key is held. Once they cross a threshold (DAS\_DELAY), the system generates rapid movement pulses. This hardware-based timing ensures that the repeat rate is independent of the frame rate or game logic load.
 
 \begin{figure}[H]
     \centering
@@ -237,17 +262,16 @@ Modern Tetris rewards advanced techniques like the T-Spin, where the T-piece rot
 
 \begin{figure}[H]
     \centering
-    \fbox{\parbox{0.6\textwidth}{\centering \vspace{2em} \textbf{[Placeholder: T-Spin Example Diagram]} \vspace{2em}}}
-    \caption{Example of a T-Spin: The T-piece rotates into a slot where it is immobile.}
+    \includegraphics[width=0.8\textwidth]{tspin-example.jpg}
+    \caption{Example of a T-Spin: The T-piece rotates into a slot where it is immobile.}                                                                                                                                                                            
     \label{fig:tspin_example}
 \end{figure}
-
 \subsubsection{Finite State Machine (FSM)}
 The complex behavior of the game is governed by a central FSM in \texttt{game\_control.sv}. Figure \ref{fig:fsm} shows the state transitions between the 15 states, including the main loops for input handling (`IDLE`), piece manipulation (`MOVE`/`ROTATE`), and gravity (`DOWN`). The key states are summarized in Table \ref{tab:fsm_states}.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.8\textwidth]{fsm_diagram.png}
+    \includegraphics[width=1\textwidth]{fsm_diagram.png}
     \caption{Game Control FSM Diagram showing major state transitions.}
     \label{fig:fsm}
 \end{figure}
@@ -345,7 +369,7 @@ Table \ref{tab:tb_summary} lists the key testbenches and their verification targ
 \end{table}
 
 \subsection{Input Manager Test (\texttt{tb\_input\_manager})}
-This testbench verifies **DAS** (Delayed Auto Shift) and **One-Shot** behavior. The log confirms that the rotation commands only fire once per key press, and the DAS repeat only triggers after a delay.
+This testbench verifies \textbf{DAS} (Delayed Auto Shift) and \textbf{One-Shot} behavior. The log confirms that the rotation commands only fire once per key press, and the DAS repeat only triggers after a delay.
 
 \begin{verbatim}
 Test 1: Rotate CW One-Shot
@@ -404,7 +428,7 @@ On the physical FPGA board (Nexys A7), we verified:
 \begin{itemize}
     \item \textbf{Visual Output}: The Tetris grid is centered, block colors match type (Cyan I, Purple T), and the ghost piece renders correctly.
     \item \textbf{Input Response}: The DAS feels responsive, similar to official Tetris games.
-    \item \textbf{Gameplay}: Full games were played through including line clears, game over, and reset functionality.
+    \item \textbf{Gameplay}: Full games were played through including line clears, reaching max level, game over, and reset functionality.
 \end{itemize}
 
 
