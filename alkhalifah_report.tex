@@ -156,7 +156,7 @@ The system serves as a complex hierarchy of SystemVerilog modules. Below is a de
 
 \texttt{vga\_out} & The video timing generator. It produces the \texttt{hsync}, \texttt{vsync}, and \texttt{active\_area} signals required for the $1280 \times 800$ display standard. \\[0.5em]
 
-\texttt{game\_control} & The core logic hub. It contains the main FSM that governs game flow (spawning, gravity, line clearing) and maintains the board state array. \\[0.5em]
+\texttt{game\_control} & The core logic hub. It contains the main FSM that governs game flow (spawning, gravity, line clearing) and maintains the board state array. The board is implemented as a 10×22 grid, with 2 invisible buffer rows at the top for piece spawning, following standard Tetris convention. Only rows 2-21 are visible to the player. \\[0.5em]
 
 \texttt{draw\_tetris} & The rendering engine. It takes the game state and current pixel coordinate to output an RGB color, leveraging sprites and using a multi-stage pipeline. \\[0.5em]
 
@@ -192,6 +192,8 @@ s1_grid_col <= (curr_x - GRID_X_START) / BLOCK_SIZE;
 s1_grid_row <= (curr_y - GRID_Y_START) / BLOCK_SIZE;
 
 // Check if block exists
+// The +2 offset maps visible screen coordinates to the internal 
+// board array, which includes 2 hidden spawn rows at the top.
 if (display.data[s1_grid_row + 2][s1_grid_col].data != `TETROMINO_EMPTY) begin
     s2_cell_color_idx <= display.data[s1_grid_row + 2][s1_grid_col].data + 1;
 end
