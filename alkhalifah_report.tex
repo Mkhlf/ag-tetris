@@ -615,4 +615,55 @@ This appendix contains the complete SystemVerilog source code for the AG Tetris 
 \textit{Button debouncer. Removes mechanical bounce from physical push-button inputs using a shift register and stability counter.}
 \lstinputlisting[language=Verilog]{src/input/debouncer.sv}
 
+% ==================== TESTBENCHES ====================
+\subsection{Testbenches and Simulation Logs}
+
+\subsubsection*{tb\_game\_control.sv}
+\textit{Core FSM testbench. Verifies piece spawning, movement, rotation, hold functionality, hard drop, ghost position, and game over detection.}
+\lstinputlisting[language=Verilog]{test/tb_game_control.sv}
+\textbf{Simulation Log:}
+\lstinputlisting[language={}]{test_logs/tb_game_control.log}
+
+\subsubsection*{tb\_input\_manager.sv}
+\textit{Input processing testbench. Tests Delayed Auto Shift (DAS) timing and one-shot behavior for rotation, drop, and hold commands.}
+\lstinputlisting[language=Verilog]{test/tb_input_manager.sv}
+\textbf{Simulation Log:}
+\lstinputlisting[language={}]{test_logs/tb_input_manager.log}
+
+\subsubsection*{tb\_rotate\_tetromino.sv}
+\textit{Rotation testbench. Verifies clockwise and counter-clockwise rotation with SRS wall kick logic.}
+\lstinputlisting[language=Verilog]{test/tb_rotate_tetromino.sv}
+\textbf{Simulation Log:}
+\lstinputlisting[language={}]{test_logs/tb_rotate_tertomino.log}
+
+\subsubsection*{tb\_hold\_feature.sv}
+\textit{Hold mechanic testbench. Tests piece swapping, hold lockout (preventing double-hold per piece), and edge cases.}
+\lstinputlisting[language=Verilog]{test/tb_hold_feature.sv}
+\textbf{Simulation Log:}
+\lstinputlisting[language={}]{test_logs/tb_hold_feature.log}
+
+\subsubsection*{tb\_generate\_tetromino.sv}
+\textit{7-Bag randomizer testbench. Verifies that pieces are generated in valid range and follow the 7-bag algorithm.}
+\lstinputlisting[language=Verilog]{test/tb_generate_tetromino.sv}
+\textbf{Simulation Log:}
+\lstinputlisting[language={}]{test_logs/tb_generate_teromino.log}
+
+\subsubsection*{tb\_vga\_out.sv}
+\textit{VGA timing testbench. Runs simulation over multiple frames to verify hsync, vsync, and active\_area signals.}
+\lstinputlisting[language=Verilog]{test/tb_vga_out.sv}
+\textbf{Simulation Log:}
+\lstinputlisting[language={}]{test_logs/tb_vga.log}
+
+\subsubsection*{tb\_ps2\_keyboard.sv}
+\textit{PS/2 decoder testbench. Tests scan code processing including make/break detection and extended key codes.}
+\lstinputlisting[language=Verilog]{test/tb_ps2_keyboard.sv}
+\textbf{Simulation Log:}
+\lstinputlisting[language={}]{test_logs/tb_ps2_keyboard.log}
+
+\subsubsection*{tb\_PS2Receiver.sv}
+\textit{Low-level PS/2 testbench. Verifies bit-level deserialization of PS/2 clock and data signals.}
+\lstinputlisting[language=Verilog]{test/tb_PS2Receiver.sv}
+\textbf{Simulation Log:}
+\lstinputlisting[language={}]{test_logs/tb_PS2Receiver.log}
+
 \end{document}
