@@ -170,6 +170,45 @@ The system serves as a complex hierarchy of SystemVerilog modules. Below is a de
 \bottomrule
 \end{tabularx}
 
+\subsection{Resource Utilization}
+The design was synthesized and implemented for the Artix-7 FPGA (xc7a100tcsg324-1). Figure~\ref{fig:utilization} shows the resource utilization breakdown.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{utilzation_bars.png}
+        \caption{Utilization Bar Chart}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{utilization_table.png}
+        \caption{Utilization Table}
+    \end{subfigure}
+    \caption{FPGA Resource Utilization Summary.}
+    \label{fig:utilization}
+\end{figure}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{|l|r|r|r|}
+    \hline
+    \textbf{Resource} & \textbf{Utilization} & \textbf{Available} & \textbf{Utilization \%} \\ \hline
+    LUT      & 25,787 & 63,400  & 40.67\% \\ \hline
+    LUTRAM   & 2,004  & 19,000  & 10.55\% \\ \hline
+    FF       & 3,941  & 126,800 & 3.11\%  \\ \hline
+    BRAM     & 0.5    & 135     & 0.37\%  \\ \hline
+    DSP      & 5      & 240     & 2.08\%  \\ \hline
+    IO       & 41     & 210     & 19.52\% \\ \hline
+    MMCM     & 1      & 6       & 16.67\% \\ \hline
+    \end{tabular}
+    \caption{FPGA Resource Utilization (Artix-7 xc7a100t).}
+    \label{tab:utilization}
+\end{table}
+
+The design uses approximately 40\% of available LUTs, primarily for the game logic FSM and collision detection. The low BRAM usage (0.5 blocks) reflects the efficient use of distributed RAM for the game board. A single MMCM generates the multiple clock domains required.
+
 \section{Design Description and Drawing Logic}
 
 \subsection{Drawing Strategy: Pipelined Renderer}

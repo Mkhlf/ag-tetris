@@ -265,6 +265,22 @@ This document catalogues all available figures for the FPGA Tetris project repor
 | TOP-1b | `Schematic/game_top_pics/cdc_section.png` | ✅ Yes | §4.3 Clock, `fig:clock_arch` |
 | TOP-2 | `Schematic/game_top_pics/input_mergingORs.png` | ✅ Yes | §4.4 Input, `fig:input_merge` |
 | DIAG-1 | `fsm_diagram.png` | ✅ Yes | §4.5.5 FSM, `fig:fsm` |
+| UTIL-1 | `utilzation_bars.png` | ✅ Yes | §3.1 Resource Utilization, `fig:utilization` |
+| UTIL-2 | `utilization_table.png` | ✅ Yes | §3.1 Resource Utilization, `fig:utilization` |
+
+---
+
+## Resource Utilization Summary
+
+| Resource | Utilization | Available | Utilization % |
+|----------|-------------|-----------|---------------|
+| LUT      | 25787       | 63400     | 40.67         |
+| LUTRAM   | 2004        | 19000     | 10.55         |
+| FF       | 3941        | 126800    | 3.11          |
+| BRAM     | 0.50        | 135       | 0.37          |
+| DSP      | 5           | 240       | 2.08          |
+| IO       | 41          | 210       | 19.52         |
+| MMCM     | 1           | 6         | 16.67         |
 
 ---
 
